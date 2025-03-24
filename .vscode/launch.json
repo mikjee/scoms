@@ -7,7 +7,7 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "SCOMS",
+			"name": "Launch SCOMS monolith",
 			"cwd": "${workspaceRoot}",
 			"runtimeExecutable": "npm",
 			"runtimeArgs": [
