@@ -9,7 +9,7 @@ module.exports = {
 			"emitTemplate": "{{dir}}/{{name}}.queries.ts"
 		}
 	],
-	"srcDir": "./",
+	"srcDir": "./src",
 	"failOnError": false,
 	"camelCaseColumnNames": false,
 	"db": {
