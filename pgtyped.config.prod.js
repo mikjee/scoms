@@ -5,8 +5,8 @@ module.exports = {
 	"transforms": [
 		{
 			"mode": "sql",
-			"include": "services/**/queries/*.sql",
-			"emitTemplate": "{{dir}}/{{name}}.queries.ts"
+			"include": "services/**/sql/*.sql",
+			"emitTemplate": "{{dir}}/{{name}}.sql.ts"
 		}
 	],
 	"srcDir": "./src",

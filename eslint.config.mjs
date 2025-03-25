@@ -23,20 +23,20 @@ export default defineConfig([
 		},
 		settings: {
 			"boundaries/elements": [
-				{ type: "services", pattern: "src/services/*" },
-				{ type: "common", pattern: "src/common/*" },
-				{ type: "monolith", pattern: "src/monolith/*" },
+				{ type: "services", pattern: "src/services/**" },
+				{ type: "common", pattern: "src/common/**" },
+				{ type: "monolith", pattern: "src/monolith/**" },
 			],
 		},
 		rules: {
-			// ...js.configs.recommended.rules,
-			// ...tseslint.configs.recommended.rules,
-			// ...boundaries.configs.recommended.rules,
+			...js.configs.recommended.rules,
+			...tseslint.configs.recommended.rules,
+			...boundaries.configs.recommended.rules,
 			"boundaries/element-types": [2, {
 				default: "disallow",
 				rules: [
 					{
-						from: "services",
+						from: "services/*",
 						allow: ["common"],
 					},
 					{
@@ -50,5 +50,23 @@ export default defineConfig([
 				],
 			}],
 		},
-	}
+	},
+	{
+		files: ["src/services/**/*.ts"],
+		rules: {
+			"no-restricted-properties": [
+				"error",
+				{
+					object: "console",
+					property: "log",
+					message: "Use this.log instead of console.log in services"
+				},
+				{
+					object: "console",
+					property: "error",
+					message: "Use this.error instead of console.error in services"
+				}
+			]
+		}
+	},
 ]);
