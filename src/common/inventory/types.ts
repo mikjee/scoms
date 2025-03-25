@@ -1,3 +1,5 @@
+import { PartialBy } from '@common/lib/util';
+
 export type TProductId = string;
 export type TProductAttrId = string;
 export type TProductAttrName = string;
@@ -32,52 +34,45 @@ export interface IInventoryService {
 		attributes: TProduct['attributes'],
 	): Promise<TProduct>
 
-	setAttributes(params: {
-		attribute_id?: string;
-		product_id: string;
-		attributes: { attribute: string; value: string | null; meta?: any }[];
-	}): Promise<void>
+	setAttributes(
+		productId: TProductId,
+		attributes: Record<TProductAttrName, PartialBy<TProductAttribute, "attributeId">>,
+	): Promise<boolean>
 
-	getProduct(idOrName: string): Promise<{
-		product_id: string;
-		product_name: string;
-		attributes: { attribute: string; value: string | null; meta?: any }[];
-	} | null>
+	getProduct(idOrName: TProductId | string): Promise<TProduct | false>
 
-	createWarehouse(data: {
-		warehouse_id: string;
-		warehouse_name: string;
-		city: string;
-		coords: { lat: number; lng: number };
-	}): Promise<void>
+	createWarehouse(
+		warehouseId: TWarehouseId,
+		warehouseName: string,
+		city: string,
+		coords: { lat: number; lng: number },
+	): Promise<TWarehouse>
 
 	addInventory(
-		warehouse_id: string,
-		product_id: string,
-		quantity: number
-	): Promise<void>
+		warehouseId: TWarehouseId,
+		productId: TProductId,
+		quantity: number,
+	): Promise<number | false>
 
 	subtractInventory(
-		warehouse_id: string,
-		product_id: string,
-		quantity: number
-	): Promise<void>
+		warehouseId: TWarehouseId,
+		productId: TProductId,
+		quantity: number,
+	): Promise<number | false>
 
 	getInventory(
-		warehouse_id: string,
-		productidOrName: string
-	): Promise<number>
+		warehouseId: TWarehouseId,
+		productidOrName: TProductId | string,
+	): Promise<number | false>
 	
-	getNearestWarehouse(
-		product_id: string,
+	getNearestWarehouses(
+		productId: TProductId,
 		quantity: number,
 		destinationCoords: { lat: number; lng: number }
 	): Promise<{
-		warehouse_id: string;
-		city: string;
-		coords: { lat: number; lng: number };
-		available_quantity: number;
-		distance_km: number;
-		estimated_shipping_cost: number;
+		warehouse: TWarehouse
+		stock: number
+		allocation: number
+		distance: number
 	}[]>
 }

@@ -1,4 +1,4 @@
-import { IUIDGenerator } from '@common/lib/uid';
+import { IUIDGenerator } from '@common/lib/util';
 import { IPgService } from '@common/pg/types';
 
 // ------------------------------------------------------------
