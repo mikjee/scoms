@@ -1,41 +1,45 @@
-import { IInventoryService, TProduct } from '../../common/inventory/types';
-import { ConnectedService } from '../../common/connectedService/ConnectedService';
+import { IInventoryService, TProduct, TProductAttribute, TProductAttrName } from '@common/inventory/types';
+import { ConnectedService } from '@common/connectedService/ConnectedService';
 
 // ---
 
 export class InventoryService extends ConnectedService implements IInventoryService  {
 
-	constructor() {
-		super('inventory', 'inv');
+	test() {
+		this.log('test', this.svcName, this.svcPrefix);
 	}
-
-	// ---
 
 	public async createProduct(
 		productName: TProduct['productName'],
-		attributes: TProduct['attributes'] = {},
-	): Promise<void> {
-		const productId = this.uid();
+		attributes: Record<TProductAttrName, Omit<TProductAttribute, "attributeId">> = {},
+	): Promise<TProduct> {
+		
+		// Start transaction
 		const { query, commit } = await this.db.transact();
 
 		try {
-			const insertProductSQL = `
+
+			// Insert main product
+			const productId = this.uid();
+			const t1 = query(`
 				INSERT INTO scoms.products (product_id, product_name)
 				VALUES (:productId, :productName);
-			`;
-
-			await query(insertProductSQL, {
+			`, {
 				productId,
 				productName,
 			});
 
+			// Insert attributes
+			let t2: Promise<any> | null = null;
 			const attrEntries = Object.entries(attributes);
+			const prdAttributes: TProduct["attributes"] = {};
+
 			if (attrEntries.length) {
 				const valuesList: string[] = [];
-				const paramObject: Record<string, any> = { productId };
+				const paramObject: Record<string, string | number | null> = { productId };
 
-				attrEntries.forEach(([attr, { value, meta }], i) => {
-					const iStr = String(i);
+				attrEntries.forEach(([attrName, { value, meta }], i) => {
+					const iStr = i.toString();
 					const attrId = this.uid();
 
 					valuesList.push(`
@@ -49,9 +53,15 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 					`);
 
 					paramObject[`attribute_id_${iStr}`] = attrId;
-					paramObject[`attribute_${iStr}`] = attr;
+					paramObject[`attribute_${iStr}`] = attrName;
 					paramObject[`value_${iStr}`] = value;
 					paramObject[`meta_${iStr}`] = meta ?? {};
+
+					prdAttributes[attrName] = {
+						attributeId: attrId,
+						value,
+						meta,
+					};
 				});
 
 				const insertAttrsSQL = `
@@ -65,14 +75,22 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 					VALUES ${valuesList.join(',\n')};
 				`;
 
-				await query(insertAttrsSQL, paramObject);
+				t2 = query(insertAttrsSQL, paramObject);
 			}
 
-			// Commit transaction
+			// Commit?
+			await Promise.all([t1, t2]);
 			await commit();
 
+			// Done
+			return {
+				productId,
+				productName,
+				attributes: prdAttributes,
+			};
+
 		} catch (err) {
-			console.error('createProduct failed:', err);
+			this.error('createProduct failed:', err);
 			throw err;
 		}
 	}
@@ -90,7 +108,7 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 		product_name: string;
 		attributes: { attribute: string; value: string | null; meta?: any }[];
 	} | null> {
-		
+		return null;
 	}
 
 	public async createWarehouse(data: {
@@ -122,7 +140,7 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 		warehouse_id: string,
 		productidOrName: string
 	): Promise<number> {
-		
+		return 0;
 	}
 	
 	public async getNearestWarehouse(
@@ -137,7 +155,7 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 		distance_km: number;
 		estimated_shipping_cost: number;
 	}[]> {
-		
+		return [];
 	}
 
 };

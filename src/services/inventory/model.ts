@@ -5,12 +5,12 @@ export interface IProductModel {
 }
 
 // `product_attributes` table
-export interface IProductAttributeModel {
+export interface IProductAttributeModel<TMeta = null> {
   attribute_id: string;        // TEXT PRIMARY KEY
   product_id: string;          // TEXT NOT NULL, FK -> products.product_id
   attribute: string;           // TEXT NOT NULL
   value: string | null;        // TEXT DEFAULT NULL
-  meta: Record<string, any>;   // JSONB DEFAULT '{}'
+  meta: TMeta;                // JSONB DEFAULT '{}'
 }
 
 // `warehouses` table

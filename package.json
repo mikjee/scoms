@@ -1,18 +1,17 @@
 {
 	"name": "scoms",
 	"version": "1.0.0",
-	"main": "src/monolith/app.ts",
+	"main": "src/app/main.ts",
+	"type": "module",
 	"directories": {
 		"doc": "docs"
 	},
 	"scripts": {
-		"pgtyped:watch": "npx pgtyped --watch --config ./pgtyped.config.dev.js",
-		"pgtyped:generate:dev": "npx pgtyped --config ./pgtyped.config.dev.js",
-		"pgtyped:generate:prod": "npx pgtyped --config ./pgtyped.config.prod.js",
-		"dev:watch-pg": "npm-run-all --parallel dev:pgtyped:watch dev",
-		"dev": "ts-node-dev --respawn src/monolith/app.ts",
+		"dev": "tsx src/app/main.ts --inspect",
+		"test": "jest",
+		"lint": "eslint .",
 		"build": "tsc",
-		"start-monolith": "node dist/monolith/app.js"
+		"start-monolith": "node dist/app/main.js"
 	},
 	"repository": {
 		"type": "git",
@@ -26,24 +25,30 @@
 	"homepage": "https://github.com/mikjee/scoms#readme",
 	"description": "",
 	"dependencies": {
-		"@pgtyped/runtime": "^2.4.2",
 		"nanoid": "^5.1.5",
 		"pg": "^8.14.1",
+		"reflect-metadata": "^0.2.2",
+		"tsyringe": "^4.8.0",
 		"yesql": "^7.0.0"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.23.0",
-		"@pgtyped/cli": "^2.4.3",
+		"@types/jest": "^29.5.14",
 		"@types/node": "^22.13.13",
 		"@types/pg": "^8.11.11",
 		"@types/yesql": "^4.1.4",
+		"@typescript-eslint/eslint-plugin": "^8.28.0",
+		"@typescript-eslint/parser": "^8.28.0",
 		"dotenv": "^16.4.7",
 		"eslint": "^9.23.0",
+		"eslint-import-resolver-typescript": "^4.2.3",
 		"eslint-plugin-boundaries": "^5.0.1",
+		"eslint-plugin-decorator-position": "^6.0.0",
+		"eslint-plugin-import": "^2.31.0",
+		"eslint-plugin-jest": "^28.11.0",
 		"globals": "^16.0.0",
-		"npm-run-all": "^4.1.5",
-		"pgtyped": "^0.0.1",
-		"ts-node-dev": "^2.0.0",
+		"tsconfig-paths": "^4.2.0",
+		"tsx": "^4.19.3",
 		"typescript": "^5.8.2",
 		"typescript-eslint": "^8.27.0"
 	}

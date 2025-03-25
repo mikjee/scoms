@@ -1,23 +1,21 @@
-import { IUIDGenerator, uid as prefixUID } from '../lib/uid';
-import { PgService } from '../pg/PgService';
+import { IUIDGenerator, uid as prefixUID } from '@common/lib/uid';
+import { PgService } from '@common/pg/PgService';
+import { injectable, inject } from 'tsyringe';
 
 // ------------------------------------------------------------
 
+@injectable()
 export class ConnectedService {
-
-	protected db: PgService;
-	protected uid: IUIDGenerator;
 	protected log: typeof console.log = console.log;
 	protected error: typeof console.error = console.error;
 	protected warn: typeof console.warn = console.warn;
 
 	constructor(
-		svcName: string,
-		svcPrefix: string,
-	) {
-		this.db = new PgService();
-		this.uid = prefixUID(svcPrefix);
-	}
+		@inject('ServiceName') protected svcName: string,
+		@inject('ServicePrefix') protected svcPrefix: string,
+		@inject(PgService) protected db: PgService,
+		@inject('IUIDGenerator') protected uid: IUIDGenerator,
+	) {}
 
 	// TODO: add logging
 	// TODO: add DI? is opinionated DI required?
@@ -32,6 +30,6 @@ export class ConnectedService {
 	// TODO: create plans - mvp and mvp phase 2
 	// TODO: add swagger docs
 	// TODO: add jsdoc style comments
-	// TODO: add ci/cd
+	// TODO: add ci/cd - setup husky, lint-staged, and other tools
 	
 }

@@ -1,15 +1,20 @@
 export type TProductId = string;
 export type TProductAttrId = string;
+export type TProductAttrName = string;
 export type TWarehouseId = string;
+
+// ---
+
+export type TProductAttribute = {
+	attributeId: TProductAttrId
+	value: string | null
+	meta?: any
+};
 
 export type TProduct = {
 	productId: TProductId
 	productName: string
-	attributes: Record<string, {
-		atributeId: TProductAttrId
-		value: string | null
-		meta?: any
-	}>
+	attributes: Record<TProductAttrName, TProductAttribute>
 };
 
 export type TWarehouse = {
@@ -25,7 +30,7 @@ export interface IInventoryService {
 	createProduct(
 		productName: TProduct['productName'],
 		attributes: TProduct['attributes'],
-	): Promise<void>
+	): Promise<TProduct>
 
 	setAttributes(params: {
 		attribute_id?: string;

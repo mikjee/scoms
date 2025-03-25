@@ -1,7 +1,8 @@
-import { Pool, PoolClient, QueryResult } from 'pg';
+import * as pg from 'pg';
 import { pg as named } from 'yesql';
+import { injectable } from 'tsyringe';
 
-// ------------------------------------------------------
+// ----------------------------------------------
 
 export interface IPGConnectionArgs {
 	user?: string;
@@ -11,11 +12,16 @@ export interface IPGConnectionArgs {
 	database?: string;
 };
 
+const { Pool } = pg;
+
+// ----------------------------------------------
+
+@injectable()
 export class PgService {
 
-	private _pool: Pool | null = null;
+	private _pool: pg.Pool | null = null;
 	get pool() { return this._pool; }
-	private set pool(value: Pool | null) { this._pool = value; }
+	private set pool(value: pg.Pool | null) { this._pool = value; }
 
 	// ---
 
@@ -57,14 +63,23 @@ export class PgService {
 		}
 	}
 
+	public async testConnection() {
+		if (!this.pool) throw new Error('No connection pool available!');
+
+		const client = await this.pool.connect();
+		const result = await client.query('SELECT NOW() AS now');
+		client.release();
+		return result.rows[0].now;
+	}
+
 	// ---
 
 	public async query(
 		queryStr: string,
 		dataPool: Record<string, any> = {},
 		debugLog?: boolean,
-		client?: PoolClient,
-	): Promise<QueryResult> {
+		client?: pg.PoolClient,
+	): Promise<pg.QueryResult> {
 		if (!this.pool && !client) throw new Error('No connection pool available!');
 
 		return new Promise((resolve, reject) =>	(client || this.pool)!.query(

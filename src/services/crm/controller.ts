@@ -1,3 +1,3 @@
-import { InventoryService } from '../inventory/contoller'; // TODO: shoulg throw error
+import { InventoryService } from '../inventory/controller'; // TODO: should throw error
 
 const svc = new InventoryService();
