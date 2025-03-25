@@ -25,9 +25,9 @@
 	"homepage": "https://github.com/mikjee/scoms#readme",
 	"description": "",
 	"dependencies": {
+		"@electric-sql/pglite": "^0.2.17",
 		"nanoid": "^5.1.5",
 		"pg": "^8.14.1",
-		"pg-mem": "^3.0.5",
 		"yesql": "^7.0.0"
 	},
 	"devDependencies": {

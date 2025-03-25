@@ -1,29 +1,20 @@
 import { uid } from '@common/lib/uid';
 import { InventoryService } from '../controller';
 import { TProduct, TProductAttribute } from '@common/inventory/types';
-import { PgMemService, setupTestDb } from '@common/pg/PgMem';
+import { PgTestService, pgTestWithSchema } from '@common/pg/PgTestService';
 
 describe('InventoryService', () => {
 	let inventoryService: InventoryService;
-	let dbSvc: PgMemService;
+	let dbSvc: PgTestService;
 
 	beforeAll(async () => {
-		dbSvc = setupTestDb();
+		dbSvc = await pgTestWithSchema();
 		inventoryService = new InventoryService(
 			'InventoryServiceTest',
 			'ivst',
 			dbSvc,
 			uid('ivst'),
 		);
-	});
-
-	afterEach(async () => {
-		await dbSvc.query('TRUNCATE TABLE scoms.products CASCADE;');
-		await dbSvc.query('TRUNCATE TABLE scoms.product_attributes CASCADE;');
-	});
-
-	afterAll(async () => {
-		await dbSvc.disconnect();
 	});
 
 	it('should create a product with no attributes', async () => {

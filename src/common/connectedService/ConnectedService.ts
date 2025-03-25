@@ -16,9 +16,7 @@ export class ConnectedService {
 		protected log: typeof console.log = console.log,
 		protected error: typeof console.error = console.error,
 		protected warn: typeof console.warn = console.warn
-	) {
-		console.log('ConnectedService', { svcName, svcPrefix, db, uid });
-	}
+	) {}
 
 	// TODO: add logging
 	// TODO: use dependency injection!
