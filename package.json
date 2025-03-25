@@ -8,7 +8,7 @@
 	},
 	"scripts": {
 		"dev": "tsx src/app/main.ts --inspect",
-		"test": "jest",
+		"test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
 		"lint": "eslint .",
 		"build": "tsc",
 		"start-monolith": "node dist/app/main.js"
@@ -27,11 +27,12 @@
 	"dependencies": {
 		"nanoid": "^5.1.5",
 		"pg": "^8.14.1",
-		"reflect-metadata": "^0.2.2",
-		"tsyringe": "^4.8.0",
+		"pg-mem": "^3.0.5",
 		"yesql": "^7.0.0"
 	},
 	"devDependencies": {
+		"@babel/preset-env": "^7.26.9",
+		"@babel/preset-typescript": "^7.27.0",
 		"@eslint/js": "^9.23.0",
 		"@types/jest": "^29.5.14",
 		"@types/node": "^22.13.13",
@@ -47,6 +48,9 @@
 		"eslint-plugin-import": "^2.31.0",
 		"eslint-plugin-jest": "^28.11.0",
 		"globals": "^16.0.0",
+		"jest": "^29.7.0",
+		"ts-jest": "^29.3.0",
+		"ts-node": "^10.9.2",
 		"tsconfig-paths": "^4.2.0",
 		"tsx": "^4.19.3",
 		"typescript": "^5.8.2",

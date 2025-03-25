@@ -3,7 +3,7 @@ import { ConnectedService } from '@common/connectedService/ConnectedService';
 
 // ---
 
-export class InventoryService extends ConnectedService implements IInventoryService  {
+export class InventoryService extends ConnectedService implements IInventoryService {
 
 	test() {
 		this.log('test', this.svcName, this.svcPrefix);
@@ -15,12 +15,12 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 	): Promise<TProduct> {
 		
 		// Start transaction
-		const { query, commit } = await this.db.transact();
+		const { query, commit } = await this.db!.transact();
 
 		try {
 
 			// Insert main product
-			const productId = this.uid();
+			const productId = this.uid!();
 			const t1 = query(`
 				INSERT INTO scoms.products (product_id, product_name)
 				VALUES (:productId, :productName);
@@ -40,7 +40,7 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 
 				attrEntries.forEach(([attrName, { value, meta }], i) => {
 					const iStr = i.toString();
-					const attrId = this.uid();
+					const attrId = this.uid!();
 
 					valuesList.push(`
 						(

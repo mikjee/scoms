@@ -1,24 +1,27 @@
-import { IUIDGenerator, uid as prefixUID } from '@common/lib/uid';
-import { PgService } from '@common/pg/PgService';
-import { injectable, inject } from 'tsyringe';
+import { IUIDGenerator } from '@common/lib/uid';
+import { IPgService } from '@common/pg/types';
 
 // ------------------------------------------------------------
 
-@injectable()
 export class ConnectedService {
-	protected log: typeof console.log = console.log;
-	protected error: typeof console.error = console.error;
-	protected warn: typeof console.warn = console.warn;
 
+	// TODO: Use Dependency Injection
 	constructor(
-		@inject('ServiceName') protected svcName: string,
-		@inject('ServicePrefix') protected svcPrefix: string,
-		@inject(PgService) protected db: PgService,
-		@inject('IUIDGenerator') protected uid: IUIDGenerator,
-	) {}
+		protected svcName: string = process.env.SERVICE_NAME || 'ConSvc',
+		protected svcPrefix: string = process.env.SERVICE_PREFIX || 'svc',
+
+		protected db: IPgService,
+		protected uid: IUIDGenerator,
+
+		protected log: typeof console.log = console.log,
+		protected error: typeof console.error = console.error,
+		protected warn: typeof console.warn = console.warn
+	) {
+		console.log('ConnectedService', { svcName, svcPrefix, db, uid });
+	}
 
 	// TODO: add logging
-	// TODO: add DI? is opinionated DI required?
+	// TODO: use dependency injection!
 	// TODO: Add auth? or only for wrapper exposing it to the outside world?
 	// TODO: prevent use of console log, error, and warn via eslint, suggest use of given methods
 	// TODO: generate test spec for each method

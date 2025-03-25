@@ -1,20 +1,29 @@
+import { uid } from '@common/lib/uid';
 import { InventoryService } from '../controller';
-import { TProduct } from '@common/inventory/types';
-import { PgService } from '@common/pg/PgService';
+import { TProduct, TProductAttribute } from '@common/inventory/types';
+import { PgMemService, setupTestDb } from '@common/pg/PgMem';
 
 describe('InventoryService', () => {
 	let inventoryService: InventoryService;
-	let query: PgService['query'];
-	let rollback: () => Promise<void>;
+	let dbSvc: PgMemService;
 
 	beforeAll(async () => {
-		inventoryService = new InventoryService();
-		query = inventoryService['db'].query.bind(inventoryService['db']);
-		await inventoryService['db'].query(`BEGIN`);
+		dbSvc = setupTestDb();
+		inventoryService = new InventoryService(
+			'InventoryServiceTest',
+			'ivst',
+			dbSvc,
+			uid('ivst'),
+		);
+	});
+
+	afterEach(async () => {
+		await dbSvc.query('TRUNCATE TABLE scoms.products CASCADE;');
+		await dbSvc.query('TRUNCATE TABLE scoms.product_attributes CASCADE;');
 	});
 
 	afterAll(async () => {
-		await inventoryService['db'].query(`ROLLBACK`);
+		await dbSvc.disconnect();
 	});
 
 	it('should create a product with no attributes', async () => {
@@ -30,7 +39,7 @@ describe('InventoryService', () => {
 	it('should create a product with multiple attributes', async () => {
 		const productName = 'Test Product With Attrs';
 
-		const attributes: TProduct['attributes'] = {
+		const attributes: Record<string, Omit<TProductAttribute, "attributeId">> = {
 			color: { value: 'red', meta: { hex: '#f00' } },
 			size: { value: 'large', meta: { units: 'cm' } },
 		};

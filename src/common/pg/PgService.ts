@@ -1,10 +1,10 @@
-import * as pg from 'pg';
+import { IPgService } from '@common/pg/types';
+import pg from 'pg';
 import { pg as named } from 'yesql';
-import { injectable } from 'tsyringe';
 
-// ----------------------------------------------
+// ---
 
-export interface IPGConnectionArgs {
+export interface IPGConnArgs {
 	user?: string;
 	password?: string;
 	host?: string;
@@ -12,12 +12,9 @@ export interface IPGConnectionArgs {
 	database?: string;
 };
 
-const { Pool } = pg;
+// ---
 
-// ----------------------------------------------
-
-@injectable()
-export class PgService {
+export class PgService implements IPgService {
 
 	private _pool: pg.Pool | null = null;
 	get pool() { return this._pool; }
@@ -26,34 +23,36 @@ export class PgService {
 	// ---
 
 	constructor(
-		public readonly connectionArgs: IPGConnectionArgs = {
+		protected readonly connectionArgs: IPGConnArgs = {
 			user: process.env.PGUSER,
 			password: process.env.PGPASSWORD,
 			host: process.env.PGHOST,
 			port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
 			database: process.env.PGDATABASE,
 		},
+
+		protected log: typeof console.log = console.log,
+		protected error: typeof console.error = console.error,
+		protected warn: typeof console.warn = console.warn,
 	) {
 		this.connect();
 	}
 
 	public async connect() {
 		if (this.pool) await this.disconnect();
-		this.pool = new Pool(this.connectionArgs);
+		this.pool = new pg.Pool(this.connectionArgs);
 
 		this.pool.on('error', (err) => {
-			console.error('PostgreSQL connection error!', err);
+			this.error('PostgreSQL connection error!', err);
 		});
 
 		this.pool.on('connect', () => {
-			console.log('PostgreSQL connection established!');
+			this.log('PostgreSQL connection established!');
 		});
 
 		this.pool.on('remove', () => {
-			console.log('PostgreSQL connection removed!');
+			this.log('PostgreSQL connection removed!');
 		});
-
-		// return this.pool.connect();  // TODO: incorrect
 	}
 
 	public async disconnect() {
@@ -85,13 +84,13 @@ export class PgService {
 		return new Promise((resolve, reject) =>	(client || this.pool)!.query(
 			(() => {
 				const q = named(queryStr)(dataPool);
-				if (debugLog) console.log(q);
+				if (debugLog) this.log(q);
 				return q;
 			})(),
 
 			(err, res) => {
 				if (err) {
-					console.log(err);
+					this.error(err);
 					reject(err);
 				} 
 				else resolve(res);

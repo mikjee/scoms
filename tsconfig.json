@@ -6,7 +6,7 @@
 			"@services/*": ["src/services/*"]
 		},
 		"allowJs": true,
-		"target": "es2015",
+		"target": "ESNext",
 		"module": "commonjs",
 		"moduleResolution": "node",
 		"sourceMap": true,
@@ -14,7 +14,7 @@
 		"strict": true,
 		"lib": [
 			"es2017",
-			"esnext",
+			"esnext"
 		],
 		"types": [
 			"jest",
@@ -26,9 +26,13 @@
 		"skipLibCheck": true,
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": true,
-		"forceConsistentCasingInFileNames": true,
+		"forceConsistentCasingInFileNames": true
 	},
 	"include": [
 		"src/**/*"
+	],
+	"exclude": [
+		"node_modules",
+		"dist"
 	]
 }
