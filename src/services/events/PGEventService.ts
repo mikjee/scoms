@@ -73,6 +73,7 @@ export class PGEventService implements IEventService {
 	public start(): void {
 		this.pollingSwitch = true;
 		this.pollEvents();
+		this.logger.log('Polling Started!');
 	}
 
 	public stop(): void {

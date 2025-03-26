@@ -7,10 +7,11 @@ import { uid } from '@common/lib/util';
 import { PGEventService } from '@services/events/PGEventService';
 import { CRMService } from '@services/crm/CRMService';
 import { Orchestrator } from '@services/orchestrator/Orchestrator';
+import { OrderService } from '@services/order/OrderService';
 
 // ---
 
-console.log("Bootrap Monolith..");
+console.log("Begin Bootrap Monolith..");
 
 // Load env vars
 dotenv.config();
@@ -38,21 +39,22 @@ const crmSvc = new CRMService(
 	pgsvc,
 	new ConsoleLogger("CRM Service"), 
 	uid('crm'),
-	evSvc,
 );
 
 // order service
-const orderSvc = new InventoryService(
+const orderSvc = new OrderService(
 	pgsvc,
 	new ConsoleLogger("Order Service"), 
 	uid('o'),
+
 	evSvc,
+	invSvc,
+	crmSvc,
 );
 
 // orchestrator
 const orchestrator = new Orchestrator(
-	new ConsoleLogger("Orchestrator"), 
-	uid('orc'),
+	new ConsoleLogger("Orchestrator"),
 
 	evSvc,
 	evSvc,
@@ -64,14 +66,16 @@ const orchestrator = new Orchestrator(
 // All ready
 // evSvc.start();
 // orchestrator.start();
-console.log("Monolith started!");
+console.log("Monolith Bootstrap Complete!");
 
 // ---
 
-// TODO: use dependency injection!
+// TODO: add dependency injection - tsyringe!
+// TODO: add query builder kysely!
 // TODO: Add auth? or only for wrapper exposing it to the outside world?
 // TODO: generate test spec for each method
-// TODO: any caching - redis required?
+// TODO: add caching - redis required? - use demo data for now
+// TODO: create REST wrapper
 // TODO: eslint rules are not working - import restrictions, console restrictions
 // TODO: create plans - mvp and mvp phase 2
 // TODO: add swagger docs

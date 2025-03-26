@@ -1,4 +1,3 @@
-import { IEventProducer } from '@common/types/events';
 import { ICRMService, TAddress, TAddressId, TUserId } from '@common/types/crm';
 import { ILoggerService } from '@common/types/logger';
 import { IPgService } from '@common/types/pg';
@@ -12,9 +11,25 @@ export class CRMService implements ICRMService {
 		private readonly db: IPgService,
 		private readonly logger: ILoggerService,
 		private readonly uid: IUIDGenerator,
-		private readonly eventProducer: IEventProducer,
 	) {
 		this.logger.log("Initialize");
+	}
+
+	// ---
+
+	public async getAllCustomers(): Promise<TUserId[]> {
+		try {
+			const result = await this.db.query(`
+				SELECT DISTINCT external_customer_id
+				FROM addresses;
+			`);
+
+			return result.rows.map((row: any) => row.external_customer_id);
+		}
+		catch (error) {
+			this.logger.error('Error getting all customers', { error });
+			throw error;
+		}
 	}
 
 	// ---
@@ -60,6 +75,30 @@ export class CRMService implements ICRMService {
 			throw error;
 		}
 	};
+
+	public async getAllAddressesByCustomerId(externalCustomerId: TUserId): Promise<TAddress[]> {
+		try {
+			const result = await this.db.query(`
+				SELECT address_id, external_customer_id, coords, meta
+				FROM addresses
+				WHERE external_customer_id = $1
+			`, [externalCustomerId]);
+
+			return result.rows.map((row: any) => ({
+				addressId: row.address_id,
+				externalCustomerId: row.external_customer_id,
+				coords: {
+					lat: row.coords.y,
+					lng: row.coords.x,
+				},
+				meta: row.meta,
+			}));
+		}
+		catch (error) {
+			this.logger.error('Error getting all addresses by customer ID', { externalCustomerId, error });
+			throw error;
+		}
+	}
 
 	public async getAddress(addressId: TAddressId): Promise<TAddress | false> {
 		try {

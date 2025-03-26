@@ -84,7 +84,8 @@ CREATE TABLE IF NOT EXISTS scoms.orders (
 	external_customer_id TEXT NOT NULL,
 	address_id TEXT NOT NULL,
 	agent_id TEXT NOT NULL,
-	status scoms.order_status NOT NULL,
+	status scoms.order_status NOT NULL DEFAULT 'draft',
+	created_on TIMESTAMPTZ NOT NULL DEFAULT now(),
 
 	CONSTRAINT fkey_scoms_orders_address
 		FOREIGN KEY (address_id)
@@ -99,9 +100,11 @@ CREATE INDEX IF NOT EXISTS idx_scoms_orders_agent_id
 	ON scoms.orders (agent_id);
 
 CREATE TABLE IF NOT EXISTS scoms.order_items (
-	order_id TEXT PRIMARY KEY,
-	product_id TEXT NOT NULL REFERENCES scoms.products(product_id),
+	order_id TEXT NOT NULL,
+	product_id TEXT NOT NULL,
 	quantity INTEGER NOT NULL CHECK (quantity > 0),
+
+	PRIMARY KEY (order_id, product_id),
 
 	CONSTRAINT fkey_scoms_order_items_order
 		FOREIGN KEY (order_id)
@@ -115,9 +118,7 @@ CREATE TABLE IF NOT EXISTS scoms.order_items (
 );
 
 CREATE TABLE IF NOT EXISTS scoms.order_pricing (
-	breakdown_id TEXT PRIMARY KEY,
-	order_id TEXT NOT NULL,
-	stack_index INTEGER NOT NULL CHECK (stack_index >= 0),
+	order_id TEXT PRIMARY KEY,
 	meta JSONB DEFAULT '{}'::jsonb,
 
 	CONSTRAINT fkey_scoms_order_pricing_order
@@ -132,7 +133,7 @@ CREATE TABLE IF NOT EXISTS scoms.order_allocation (
 	warehouse_id TEXT NOT NULL,
 	product_id TEXT NOT NULL,
 	quantity INTEGER NOT NULL CHECK (quantity > 0),
-	is_manual BOOLEAN NOT NULL,
+	distance INTEGER NOT NULL CHECK (distance >= 0),
 
 	CONSTRAINT fkey_scoms_order_allocation_order
 		FOREIGN KEY (order_id)

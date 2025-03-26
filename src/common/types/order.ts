@@ -1,4 +1,4 @@
-import { TAddress, TUserId } from '@common/types/crm';
+import { TAddress, TAddressId, TUserId } from '@common/types/crm';
 import { TProductId, TWarehouseId } from '@common/types/inventory';
 
 export type TOrderId = string;
@@ -19,32 +19,84 @@ export type TOrder = {
 	status: EOrderStatus;
 
 	items: TOrderItem[];
-	pricing: TOrderPricing[];
+	pricing: TOrderPricing;
 	allocations: TOrderAllocation[];
 };
 
 export type TOrderItem = {
-	orderId: TOrderId;
 	productId: TProductId;
 	quantity: number;
 };
 
-export type TOrderPricing = {
-	breakdownId: TOrderPricingId;
-	orderId: TOrderId;
-	stackIndex: number;
-	meta?: any;
+export type TOrderPriceBreakdown = {
+	productId: TProductId,
+	price: number,
+	shippingCost: number,
+	discount: number,
 };
 
+export type TOrderPricing = TOrderPriceBreakdown[];
+
 export type TOrderAllocation = {
-	allocationId: TOrderAllocationId;
-	orderId: TOrderId;
 	warehouseId: TWarehouseId;
 	productId: TProductId;
 	quantity: number;
-	isManual: boolean;
+	distance: number;
 };
 
+// ---
+
 export interface IOrderService {
+
+	createOrder(
+		externalCustomerId: TUserId,
+		addressId: TAddressId,
+		agentId: TUserId,
+		items: TOrderItem[],
+	): Promise<TOrder | false>;
+
+	updateDraftOrder(
+		orderId: TOrderId,
+		items: TOrderItem[],
+		addressId: TAddressId,
+	): Promise<Partial<TOrder> | false>;
+
+	// ---
+
+	previewOrder(
+		orderId: TOrderId,
+	): Promise<TOrder | false>;
+
+	validateOrder(
+		order: TOrder
+	): Promise<true | string>
+
+	confirmOrder(
+		orderId: TOrderId,
+		order: TOrder,
+	): Promise<TOrderId | false>;
+
+	setOrderStatus(
+		orderId: TOrderId,
+		status: EOrderStatus,
+	): Promise<boolean>;
+
+	// ---
+
+	getOrderById(
+		orderId: TOrderId,
+	): Promise<TOrder | false>;
+
+	getOrdersByCustomerId(
+		customerId: TUserId,
+	): Promise<TOrderId[]>;
+
+	getOrdersByAddressId(
+		addressId: TAddressId,
+	): Promise<TOrderId[]>;
+
+	getOrdersByAgentId(
+		agentId: TUserId,
+	): Promise<TOrderId[]>;
 
 };

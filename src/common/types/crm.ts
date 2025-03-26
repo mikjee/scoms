@@ -9,6 +9,8 @@ export type TAddress = {
 };
 
 export interface ICRMService {
+	getAllCustomers(): Promise<TUserId[]>;
+
 	createAddress(
 		externalCustomerId: TUserId,
 		coords: { lat: number; lng: number },
@@ -16,4 +18,6 @@ export interface ICRMService {
 	): Promise<TAddress>;
 
 	getAddress(addressId: TAddressId): Promise<TAddress | false>;
+
+	getAllAddressesByCustomerId(externalCustomerId: TUserId): Promise<TAddress[]>;
 }
