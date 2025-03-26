@@ -1,9 +1,23 @@
-import { ConnectedService } from '@common/connectedService/ConnectedService';
-import { ICRMService, TAddress, TAddressId, TUserId } from '@common/crm/types';
+import { IEventProducer } from '@common/types/events';
+import { ICRMService, TAddress, TAddressId, TUserId } from '@common/types/crm';
+import { ILoggerService } from '@common/types/logger';
+import { IPgService } from '@common/types/pg';
+import { IUIDGenerator } from '@common/types/uid';
 
 // ---
 
-export class CRMService extends ConnectedService implements ICRMService {
+export class CRMService implements ICRMService {
+
+	constructor (
+		private readonly db: IPgService,
+		private readonly logger: ILoggerService,
+		private readonly uid: IUIDGenerator,
+		private readonly eventProducer: IEventProducer,
+	) {
+		this.logger.log("Initialize");
+	}
+
+	// ---
 
 	public async createAddress(
 		externalCustomerId: TUserId,
@@ -27,7 +41,7 @@ export class CRMService extends ConnectedService implements ICRMService {
 			]);
 
 			if (!result.rowCount) {
-				this.error('Address already exists', { externalCustomerId, coords, meta });
+				this.logger.error('Address already exists', { externalCustomerId, coords, meta });
 				throw new Error('Address already exists');
 			}
 
@@ -42,7 +56,7 @@ export class CRMService extends ConnectedService implements ICRMService {
 			};
 		}
 		catch (error) {
-			this.error('Error creating address', { externalCustomerId, coords, meta, error });
+			this.logger.error('Error creating address', { externalCustomerId, coords, meta, error });
 			throw error;
 		}
 	};
@@ -58,7 +72,7 @@ export class CRMService extends ConnectedService implements ICRMService {
 			});
 
 			if (!result.rowCount) {
-				this.error('Address not found', { addressId });
+				this.logger.error('Address not found', { addressId });
 				return false;
 			}
 
@@ -73,7 +87,7 @@ export class CRMService extends ConnectedService implements ICRMService {
 			};
 		}
 		catch (error) {
-			this.error('Error getting address', { addressId, error });
+			this.logger.error('Error getting address', { addressId, error });
 			throw error;
 		}
 

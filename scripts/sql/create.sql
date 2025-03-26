@@ -155,25 +155,18 @@ CREATE INDEX IF NOT EXISTS idx_scoms_order_allocation_order_id
 
 -- --------------------
 
-CREATE TYPE scoms.event_priority AS ENUM ('low', 'normal', 'high');
-CREATE TYPE scoms.event_status AS ENUM ('none', 'processing', 'executed', 'failed');
+CREATE TYPE scoms.event_status AS ENUM ('pending', 'processing', 'delivered', 'failed');
 
 CREATE TABLE IF NOT EXISTS scoms.events (
 	event_id TEXT PRIMARY KEY,
 	event_type TEXT NOT NULL,
-	priority scoms.event_priority NOT NULL,
-	publisher TEXT NOT NULL,
 	created_on TIMESTAMPTZ NOT NULL,
 	payload JSONB,
-	meta JSONB,
-	status scoms.event_status NOT NULL
+	status scoms.event_status NOT NULL DEFAULT 'pending',
 );
 
 CREATE INDEX IF NOT EXISTS idx_scoms_events_event_type
 	ON scoms.events (event_type);
-
-CREATE INDEX IF NOT EXISTS idx_scoms_events_publisher
-	ON scoms.events (publisher);
 
 CREATE INDEX IF NOT EXISTS idx_scoms_events_created_on
 	ON scoms.events (created_on);

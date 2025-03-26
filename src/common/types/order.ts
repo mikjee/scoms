@@ -1,5 +1,5 @@
-import { TAddress, TUserId } from '@common/crm/types';
-import { TProductId, TWarehouseId } from '@common/inventory/types';
+import { TAddress, TUserId } from '@common/types/crm';
+import { TProductId, TWarehouseId } from '@common/types/inventory';
 
 export type TOrderId = string;
 export enum EOrderStatus {
@@ -43,4 +43,8 @@ export type TOrderAllocation = {
 	productId: TProductId;
 	quantity: number;
 	isManual: boolean;
+};
+
+export interface IOrderService {
+
 };

@@ -1,4 +1,4 @@
-import { IPgService } from '@common/pg/types';
+import { IPgService } from '@common/types/pg';
 import pg from 'pg';
 import { pg as named } from 'yesql';
 

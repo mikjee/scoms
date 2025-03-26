@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { pg as named } from 'yesql';
-import { IPgService } from '@common/pg/types';
+import { IPgService } from '@common/types/pg';
 
 import fs from 'fs';
 import path from 'path';

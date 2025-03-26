@@ -1,6 +1,6 @@
 import { uid } from '@common/lib/util';
 import { InventoryService } from '../InventoryService';
-import { TProduct, TProductAttribute } from '@common/inventory/types';
+import { TProduct, TProductAttribute } from '@common/types/inventory';
 import { PgTestService, pgTestWithSchema } from '@common/pg/PgTestService';
 
 describe('InventoryService', () => {

@@ -1,10 +1,22 @@
-import { IInventoryService, TProduct, TProductAttribute, TProductAttrName, TProductId, TWarehouse, TWarehouseId } from '@common/inventory/types';
-import { ConnectedService } from '@common/connectedService/ConnectedService';
+import { IEventProducer } from '@common/types/events';
+import { IInventoryService, TProduct, TProductAttribute, TProductAttrName, TProductId, TWarehouse, TWarehouseId } from '@common/types/inventory';
 import { PartialBy } from '@common/lib/util';
+import { IPgService } from '@common/types/pg';
+import { ILoggerService } from '@common/types/logger';
+import { IUIDGenerator } from '@common/types/uid';
 
 // ---
 
-export class InventoryService extends ConnectedService implements IInventoryService {
+export class InventoryService implements IInventoryService {
+
+	constructor (
+		private readonly db: IPgService,
+		private readonly logger: ILoggerService,
+		private readonly uid: IUIDGenerator,
+		private readonly eventProducer: IEventProducer,
+	) {
+		this.logger.log("Initialize");
+	}
 
 	// ---
 
@@ -90,7 +102,7 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 			};
 
 		} catch (err) {
-			this.error('createProduct failed:', err);
+			this.logger.error('createProduct failed:', err);
 			throw err;
 		}
 	}
@@ -152,7 +164,7 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 			return true;
 
 		} catch (err) {
-			this.error('setAttributes failed:', err);
+			this.logger.error('setAttributes failed:', err);
 			throw err;
 		}
 	}
@@ -207,7 +219,7 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 			});
 
 			if (!result) {
-				this.error('createWarehouse failed: No result returned');
+				this.logger.error('createWarehouse failed: No result returned');
 				throw new Error("createWarehouse failed: No result returned");
 			}
 
@@ -219,7 +231,7 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 			};
 			
 		} catch (err) {
-			this.error('createWarehouse failed:', err);
+			this.logger.error('createWarehouse failed:', err);
 			throw err;
 		}
 
@@ -245,13 +257,13 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 			});
 
 			if (!result) {
-				this.error('addInventory failed: No result returned');
+				this.logger.error('addInventory failed: No result returned');
 				throw new Error("addInventory failed: No result returned");
 			}
 
 			return result?.quantity || false;
 		} catch (err) {
-			this.error('addInventory failed:', err);
+			this.logger.error('addInventory failed:', err);
 			throw err;
 		}
 	}
@@ -275,14 +287,14 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 			});
 
 			if (!result) {
-				this.error('subtractInventory failed: No result returned');
+				this.logger.error('subtractInventory failed: No result returned');
 				throw new Error("subtractInventory failed: No result returned");
 			}
 
 			return result?.quantity || false;
 		}
 		catch (err) {
-			this.error('subtractInventory failed:', err);
+			this.logger.error('subtractInventory failed:', err);
 			throw err;
 		}
 		
@@ -307,7 +319,7 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 			if (!result) return false;
 			return result.quantity || false;
 		} catch (err) {
-			this.error('getInventory failed:', err);
+			this.logger.error('getInventory failed:', err);
 			throw err;
 		}
 	}
@@ -400,7 +412,7 @@ export class InventoryService extends ConnectedService implements IInventoryServ
 			return warehouses;
 		}
 		catch (err) {
-			this.error('getNearestWarehouse failed:', err);
+			this.logger.error('getNearestWarehouse failed:', err);
 			throw err;
 		}
 
