@@ -26,5 +26,5 @@ export interface IEventConsumer {
 }
 
 export interface IEventProducer {
-	emit(event: Omit<TEvent, "eventId" | "createdOn" | "publisher">): Promise<TEvent | false>;
+	emit(event: Omit<TEvent, "eventId" | "createdOn">): Promise<TEvent | false>;
 }

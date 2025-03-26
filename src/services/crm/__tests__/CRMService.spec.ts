@@ -1,5 +1,5 @@
 import { uid } from '@common/lib/util';
-import { PgTestService, pgTestWithSchema } from '@common/pg/PgTestService';
+import { PgTestService, setupPgTestWithSchema } from '@common/pg/PgTestService';
 import { CRMService } from '@services/crm/CRMService';
 
 describe('CRMService', () => {
@@ -7,7 +7,7 @@ describe('CRMService', () => {
 	let dbSvc: PgTestService;
 
 	beforeAll(async () => {
-		dbSvc = await pgTestWithSchema();
+		dbSvc = await setupPgTestWithSchema();
 		crmsvc = new CRMService(
 			'CRMServiceTest',
 			'crmt',

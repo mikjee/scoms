@@ -1,14 +1,14 @@
 import { uid } from '@common/lib/util';
 import { InventoryService } from '../InventoryService';
 import { TProduct, TProductAttribute } from '@common/types/inventory';
-import { PgTestService, pgTestWithSchema } from '@common/pg/PgTestService';
+import { PgTestService, setupPgTestWithSchema } from '@common/pg/PgTestService';
 
 describe('InventoryService', () => {
 	let inventoryService: InventoryService;
 	let dbSvc: PgTestService;
 
 	beforeAll(async () => {
-		dbSvc = await pgTestWithSchema();
+		dbSvc = await setupPgTestWithSchema();
 		inventoryService = new InventoryService(
 			'InventoryServiceTest',
 			'ivst',
@@ -62,7 +62,7 @@ describe('InventoryService', () => {
 			size: { value: null }, // Setting size to null
 		};
 
-		const result = await inventoryService.setAttributes(product.productId, newAttributes);
+		const result = await inventoryService.dangerouslySetAttributes(product.productId, newAttributes);
 
 		expect(result).toBe(true);
 

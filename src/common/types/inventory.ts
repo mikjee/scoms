@@ -1,4 +1,5 @@
 import { PartialBy } from '@common/lib/util';
+import { TOrderId } from '@common/types/order';
 
 export type TProductId = string;
 export type TProductAttrId = string;
@@ -9,7 +10,7 @@ export type TWarehouseId = string;
 
 export type TProductAttribute = {
 	attributeId: TProductAttrId
-	value: string | null
+	value: string | number | null
 	meta?: any
 };
 
@@ -26,20 +27,42 @@ export type TWarehouse = {
 	coords: { lat: number; lng: number }
 };
 
+export enum EAllocationStatus {
+	PENDING = "pending",
+	CONFIRMED = "confirmed",
+	FULFILLED = "fulfilled",
+	CANCELLED = "cancelled",
+};
+
+export type TAllocation = {
+	warehouseId: TWarehouseId;
+	productId: TProductId;
+	quantity: number;
+	status: EAllocationStatus;
+};
+
+export type TAllocationProposal = (Omit<TAllocation, "status"> & {
+	distance: number
+});
+
 // ---
 
 export interface IInventoryService {
+
 	createProduct(
 		productName: TProduct['productName'],
 		attributes: TProduct['attributes'],
 	): Promise<TProduct>
 
-	setAttributes(
+	// Products & attributes should be immutable!
+	dangerouslySetAttributes(
 		productId: TProductId,
 		attributes: Record<TProductAttrName, PartialBy<TProductAttribute, "attributeId">>,
 	): Promise<boolean>
 
 	getProduct(idOrName: TProductId | string): Promise<TProduct | false>
+
+	// ---
 
 	createWarehouse(
 		warehouseId: TWarehouseId,
@@ -64,6 +87,27 @@ export interface IInventoryService {
 		warehouseId: TWarehouseId,
 		productidOrName: TProductId | string,
 	): Promise<number | false>
+
+	// ---
+
+	isAllocationValid(
+		allocations: TAllocationProposal[],
+	): Promise<boolean>
+
+	allocateStock(
+		orderId: TOrderId,
+		allocations: TAllocationProposal[],
+	): Promise<boolean>
+
+	cancelAllocation(
+		orderId: TOrderId,
+	): Promise<boolean>
+
+	getAllocatedStock(
+		orderId: TOrderId,
+	): Promise<TAllocation[]>
+
+	// ---
 	
 	getNearestWarehouses(
 		productId: TProductId,

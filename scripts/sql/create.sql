@@ -77,13 +77,21 @@ CREATE INDEX IF NOT EXISTS idx_scoms_addresses_customer_id
 
 -- --------------------
 
-CREATE TYPE scoms.order_status AS ENUM ('draft', 'processing', 'fulfilled', 'cancelled');
+CREATE TYPE scoms.order_status AS ENUM ('draft', 'processing', 'confirmed', 'fulfilled', 'cancelled');
 
 CREATE TABLE IF NOT EXISTS scoms.orders (
 	order_id TEXT PRIMARY KEY,
+
 	external_customer_id TEXT NOT NULL,
 	address_id TEXT NOT NULL,
 	agent_id TEXT NOT NULL,
+
+	pricing_strategy TEXT NOT NULL DEFAULT 'default-pricing',
+	shipping_strategy TEXT NOT NULL DEFAULT 'default-shipping',
+	validation_strategy TEXT NOT NULL DEFAULT 'default-validation',
+
+	pricing JSONB DEFAULT '{}'::jsonb,
+
 	status scoms.order_status NOT NULL DEFAULT 'draft',
 	created_on TIMESTAMPTZ NOT NULL DEFAULT now(),
 
@@ -117,42 +125,36 @@ CREATE TABLE IF NOT EXISTS scoms.order_items (
 		DEFERRABLE INITIALLY DEFERRED
 );
 
-CREATE TABLE IF NOT EXISTS scoms.order_pricing (
-	order_id TEXT PRIMARY KEY,
-	meta JSONB DEFAULT '{}'::jsonb,
+-- --------------------
 
-	CONSTRAINT fkey_scoms_order_pricing_order
-		FOREIGN KEY (order_id)
-		REFERENCES scoms.orders(order_id)
-		DEFERRABLE INITIALLY DEFERRED
-);
+CREATE TYPE scoms.allocation_status AS ENUM ('pending', 'confirmed', 'fulfilled', 'cancelled');
 
-CREATE TABLE IF NOT EXISTS scoms.order_allocation (
+CREATE TABLE IF NOT EXISTS scoms.allocations (
 	allocation_id TEXT PRIMARY KEY,
 	order_id TEXT NOT NULL,
 	warehouse_id TEXT NOT NULL,
 	product_id TEXT NOT NULL,
 	quantity INTEGER NOT NULL CHECK (quantity > 0),
-	distance INTEGER NOT NULL CHECK (distance >= 0),
+	status scoms.allocation_status NOT NULL DEFAULT 'pending',
 
-	CONSTRAINT fkey_scoms_order_allocation_order
+	CONSTRAINT fkey_scoms_allocation_order
 		FOREIGN KEY (order_id)
 		REFERENCES scoms.orders(order_id)
 		DEFERRABLE INITIALLY DEFERRED,
 
-	CONSTRAINT fkey_scoms_order_allocation_warehouse
+	CONSTRAINT fkey_scoms_allocation_warehouse
 		FOREIGN KEY (warehouse_id)
 		REFERENCES scoms.warehouses(warehouse_id)
 		DEFERRABLE INITIALLY DEFERRED,
 
-	CONSTRAINT fkey_scoms_order_allocation_product
+	CONSTRAINT fkey_scoms_allocation_product
 		FOREIGN KEY (product_id)
 		REFERENCES scoms.products(product_id)
 		DEFERRABLE INITIALLY DEFERRED
 );
 
-CREATE INDEX IF NOT EXISTS idx_scoms_order_allocation_order_id
-	ON scoms.order_allocation (order_id);
+CREATE INDEX IF NOT EXISTS idx_scoms_allocation_order_id
+	ON scoms.allocations (order_id);
 
 -- --------------------
 
@@ -163,7 +165,7 @@ CREATE TABLE IF NOT EXISTS scoms.events (
 	event_type TEXT NOT NULL,
 	created_on TIMESTAMPTZ NOT NULL,
 	payload JSONB,
-	status scoms.event_status NOT NULL DEFAULT 'pending',
+	status scoms.event_status NOT NULL DEFAULT 'pending'
 );
 
 CREATE INDEX IF NOT EXISTS idx_scoms_events_event_type
@@ -171,6 +173,9 @@ CREATE INDEX IF NOT EXISTS idx_scoms_events_event_type
 
 CREATE INDEX IF NOT EXISTS idx_scoms_events_created_on
 	ON scoms.events (created_on);
+
+CREATE INDEX IF NOT EXISTS idx_scoms_events_status 
+	ON scoms.events (status);
 
 
 

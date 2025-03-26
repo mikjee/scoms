@@ -1,14 +1,17 @@
 import { ICRMService, TAddressId, TUserId } from '@common/types/crm';
 import { EEventType, IEventProducer } from '@common/types/events';
-import { IInventoryService } from '@common/types/inventory';
+import { IInventoryService, TAllocation, TAllocationProposal } from '@common/types/inventory';
 import { ILoggerService } from '@common/types/logger';
-import { EOrderStatus, IOrderService, TOrder, TOrderAllocation, TOrderId, TOrderItem, TOrderPriceBreakdown, TOrderPricing } from '@common/types/order';
+import { EOrderStatus, IOrderService, TFinalizedOrder, TNewOrderParams, TOrderDraft, TOrderId, TOrderItem, TOrderProposal, TOrderStrategyId } from '@common/types/order';
 import { IPgService } from '@common/types/pg';
 import { IUIDGenerator } from '@common/types/uid';
+import { IOrderPricingStrategyHandler, IOrderShippingStrategyHandler, IOrderStrategyHandler, IOrderValidationStrategyHandler } from './types';
 
 // ---
 
 export class OrderService implements IOrderService {
+
+	private readonly mapOrderStrategyToHandler: Record<TOrderStrategyId, IOrderStrategyHandler> = {};
 
 	constructor (
 		private readonly db: IPgService,
@@ -22,14 +25,20 @@ export class OrderService implements IOrderService {
 		this.logger.log("Initialize");
 	}
 
+	public registerStrategy(strategyId: TOrderStrategyId, handler: IOrderStrategyHandler): void {
+		this.mapOrderStrategyToHandler[strategyId] = handler;
+		this.logger.log(`Registered strategy ${strategyId}`);
+	}
+
+	public getStrategy(strategyId: TOrderStrategyId): IOrderStrategyHandler | false {
+		return this.mapOrderStrategyToHandler[strategyId] || false;
+	}
+
 	// ---
 
-	public async createOrder(
-		externalCustomerId: TUserId,
-		addressId: TAddressId,
-		agentId: TUserId,
-		items: TOrderItem[],
-	): Promise<TOrder | false> {
+	public async createDraftOrder(
+		params: TNewOrderParams,
+	): Promise<TOrderDraft | false> {
 		const { query, commit } = await this.db.transact();
 
 		try {
@@ -37,39 +46,48 @@ export class OrderService implements IOrderService {
 
 			// Insert main record
 			const t1 = await query(`
-				INSERT INTO orders (order_id, external_customer_id, address_id, agent_id)
-				VALUES (:orderId, :externalCustomerId, :addressId, :agentId)
-				ON CONFLICT (order_id) DO NOTHING
-				RETURNING order_id, external_customer_id, address_id, agent_id;
+				INSERT INTO scoms.orders (
+					order_id, 
+					external_customer_id, 
+					address_id, 
+					agent_id,
+					pricing_strategy,
+					shipping_strategy
+				)
+				VALUES (
+					:orderId, 
+					:externalCustomerId, 
+					:addressId, 
+					:agentId,
+					:pricingStrategy,
+					:shippingStrategy
+				)
+				RETURNING order_id, status, created_on;
 			`, {
 				orderId,
-				externalCustomerId,
-				addressId,
-				agentId,
+				externalCustomerId: params.externalCustomerId,
+				addressId: params.addressId,
+				agentId: params.agentId,
+				pricingStrategy: params.pricingStrategy,
+				shippingStrategy: params.shippingStrategy,
 			});
 
 			// Insert items
-			let itemsQuery = `
-				INSERT INTO order_items (order_id, product_id, quantity)
-			`;
-			const params: Record<string, any> = {};
+			let itemsQuery = `INSERT INTO scoms.order_items (order_id, product_id, quantity) VALUES`;
+			const queryParams: Record<string, any> = {};
 
-			const itemsQueryParts = items.map((item, i) => {
+			const itemsQueryParts = params.items.map((item, i) => {
 				const iStr = i.toString();
-				params[`product_id_${iStr}`] = item.productId;
-				params[`quantity_${iStr}`] = item.quantity;
-
-				return `(:orderId, :product_id_${iStr}, quantity_${iStr})`;
+				queryParams[`product_id_${iStr}`] = item.productId;
+				queryParams[`quantity_${iStr}`] = item.quantity;
+				return ` (:orderId, :product_id_${iStr}, :quantity_${iStr}) `;
 			});
 
 			itemsQuery += itemsQueryParts.join(', ');
-			itemsQuery += `
-				ON CONFLICT (order_id, product_id) DO NOTHING
-				RETURNING order_id, product_id, quantity;
-			`;
+			itemsQuery += `RETURNING order_id, product_id, quantity;`;
 
 			const t2 = await query(itemsQuery, {
-				...params,
+				...queryParams,
 				orderId,
 			});
 
@@ -79,15 +97,22 @@ export class OrderService implements IOrderService {
 				
 			// Done
 			return {
-				orderId: t1.rows[0].order_id,
-				externalCustomerId: t1.rows[0].external_customer_id,
-				address: t1.rows[0].address_id,
-				agentId: t1.rows[0].agent_id,
-				status: 'draft',
-				items,
-				pricing: [],
-				allocations: [],
-			} as TOrder;
+				orderId,
+
+				externalCustomerId: params.externalCustomerId,
+				addressId: params.addressId,
+				agentId: params.agentId,
+
+				items: params.items,
+
+				pricingStrategy: params.pricingStrategy,
+				shippingStrategy: params.shippingStrategy,
+				validationStrategy: params.validationStrategy,
+				
+				status: t1.rows[0].status,
+				createdOn: t1.rows[0].created_on,
+			};
+
 		}
 		catch (error) {
 			this.logger.error('Error creating order', { error });
@@ -97,56 +122,61 @@ export class OrderService implements IOrderService {
 
 	public async updateDraftOrder(
 		orderId: TOrderId,
-		items: TOrderItem[],
-		addressId: TAddressId,
-	): Promise<Partial<TOrder> | false> {
+		params: Partial<TNewOrderParams>,
+	): Promise<boolean> {
 		const { query, commit } = await this.db.transact();
 
 		try {
-			// Update main record
+			// Update main record - construct query based on which params are provided
 			const t1 = await query(`
 				UPDATE orders
-				SET address_id = :addressId
-				WHERE order_id = :orderId
-				RETURNING order_id, address_id;
+				SET 
+					external_customer_id = COALESCE(:externalCustomerId, external_customer_id),
+					address_id = COALESCE(:addressId, address_id),
+					agent_id = COALESCE(:agentId, agent_id),
+					pricing_strategy = COALESCE(:pricingStrategy, pricing_strategy),
+					shipping_strategy = COALESCE(:shippingStrategy, shipping_strategy)
+				WHERE order_id = :orderId AND status = :statusDraft
+				RETURNING order_id;
 			`, {
 				orderId,
-				addressId,
+				statusDraft: EOrderStatus.DRAFT,
+
+				external_customer_id: params.externalCustomerId,
+				addressId: params.addressId,
+				agentId: params.agentId,
+				pricingStrategy: params.pricingStrategy,
+				shippingStrategy: params.shippingStrategy,
 			});
 
-			// Update items
+			// Update items // TODO: delete old items, insert new items! IMPORTANT!
 			let itemsQuery = `
 				UPDATE order_items
 				SET quantity = CASE product_id
 			`;
-			const params: Record<string, any> = {};
+			const queryParams: Record<string, any> = {};
 
-			const itemsQueryParts = items.map((item, i) => {
+			const itemsQueryParts = params.items?.map((item, i) => {
 				const iStr = i.toString();
-				params[`product_id_${iStr}`] = item.productId;
-				params[`quantity_${iStr}`] = item.quantity;
-
+				queryParams[`product_id_${iStr}`] = item.productId;
+				queryParams[`quantity_${iStr}`] = item.quantity;
 				return `WHEN :product_id_${iStr} THEN :quantity_${iStr}`;
-			});
+			}) || [];
 
 			itemsQuery += itemsQueryParts.join(' ');
 			itemsQuery += `END WHERE order_id = :orderId;`;
 
-			const t2 = await query(itemsQuery, {
-				...params,
+			const t2 = await params.items?.length ? query(itemsQuery, {
+				...queryParams,
 				orderId,
-			});
+			}) : true;
 
 			// wait for all
 			await Promise.all([t1, t2]);
 			await commit();
 
-			return {
-				orderId: t1.rows[0].order_id,
-				address: t1.rows[0].address_id,
-				status: EOrderStatus.draft,
-				items,
-			};
+			// Done
+			return true;
 		}
 		catch (error) {
 			this.logger.error('Error updating draft order', { error });
@@ -156,54 +186,27 @@ export class OrderService implements IOrderService {
 
 	// ---
 
-	public async previewOrder(
+	public async createOrderProposal(
 		orderId: TOrderId,
-	): Promise<TOrder | false> {
+	): Promise<TOrderProposal | false> {
 		// This method will get a draft order
-		// Then it will get the nearest warehouse for each item from InventoryService.getNearestWarehouses()
+		// Then it will assign allocations to the order using calculateOrderAllocations()
 		// Then it will calculateOrderPricing() after assigning the allocations to the order
 		// Then it will return the order with the pricing and allocations
 
 		try {
 			const order = await this.getOrderById(orderId);
+
 			if (!order) {
 				this.logger.error('Order not found', { orderId });
 				return false;
 			}
+			
+			const proposedOrder = {...order } as TOrderProposal;
+			proposedOrder.allocations = await this.calculateOrderAllocations(proposedOrder);
+			proposedOrder.pricing = await this.calculateOrderPricing(proposedOrder);;
 
-			// Get nearest warehouse for each item
-			const allocPerProduct = await Promise.all(order.items.map(async (item) => {
-				const res = await this.inventoryService.getNearestWarehouses(
-					item.productId,
-					item.quantity,
-					order.address.coords,
-				);
-
-				const allocations: TOrderAllocation[] = res.map((alloc) => ({
-					warehouseId: alloc.warehouse.warehouseId,
-					productId: item.productId,
-					quantity: item.quantity,
-					distance: alloc.distance,
-				}));
-
-				return allocations;
-			}));
-
-			// Flatten the allocations array and assign to order
-			order.allocations = allocPerProduct.flat();
-
-			// Calculate pricing
-			const pricing = await this.calculateOrderPricing(order);
-			if (!pricing) {
-				this.logger.error('Error calculating order pricing', { orderId });
-				return false;
-			}
-
-			// Assign pricing to order
-			order.pricing = pricing;
-
-			// Done
-			return order;
+			return proposedOrder;
 		}
 		catch (error) {
 			this.logger.error('Error previewing order', { orderId, error });
@@ -211,64 +214,54 @@ export class OrderService implements IOrderService {
 		}
 	}
 
-	private async calculateOrderPricing(
-		order: TOrder
-	): Promise<TOrderPricing | false> {
-		// This method will get price for each item using InventoryService.getProduct().attributes.price
-		// Then it will calculate the price per item and total price
-		// Price per item is calculated as shipping distance * price per km * quantity, for each warehouse
-		// Total price is as follows:
-		// (sum of all items prices) - (volume discounts) + (shipping cost)
-		// Then it will return the pricing object, with accurate breakdown of the pricing, including discount and shipping cost
+	private async calculateOrderAllocations(
+		order: TOrderDraft | TOrderProposal,
+	): Promise<TAllocationProposal[]> {
+		const handler = this.getStrategy(order.shippingStrategy) as IOrderShippingStrategyHandler | false;
 
-		// First get price and weight for all products in the order
-		let products = await Promise.all(order.items.map(async (item) => {
-			const product = await this.inventoryService.getProduct(item.productId);
+		if (!handler) {
+			this.logger.error('No shipping strategy found', { orderId: order.orderId });
+			throw `No shipping strategy found for order ${order.orderId}`;
+		}
 
-			if (!product) {
-				this.logger.error('Product not found', { productId: item.productId });
-				throw `Product not found: ${item.productId}`;
-			}
+		return handler(
+			order,
 
-			return {
-				productId: product.productId,
-				price: parseInt(product.attributes.price!.value!),
-				weight: parseInt(product.attributes.weight!.value!),
-				volumeDiscount: parseInt(product.attributes.volumeDiscount!.value!),
-			};
-		}));
+			this.db,
+			this.logger,
+			this.uid,
+			this.eventProducer,
 
-		// Calculate price per item = item order quantity * product price, volume discount
-		const pricePerItem: TOrderPriceBreakdown[] = products.map((product, i) => {
-			return {
-				productId: product.productId,
-				price: product.price * order.items[i].quantity,
-				shippingCost: 0,
-				discount: product.volumeDiscount * order.items[i].quantity,
-			};
-		});
-
-		// Calculate shipping cost = s $0.01 per kilogram per kilometer
-		order.allocations.forEach((alloc) => {
-			const product = products.find((p) => p.productId === alloc.productId);
-			const priceBreakdown = pricePerItem.find((p) => p.productId === alloc.productId);
-
-			if (!product || !priceBreakdown) {
-				this.logger.error('Product not found for allocation', { productId: alloc.productId });
-				throw `Product not found for allocation: ${alloc.productId}`;
-			}
-
-			const shippingCost = alloc.distance * 0.01 * product.weight * alloc.quantity;
-			priceBreakdown.shippingCost += shippingCost;
-		});
-
-		// all done
-		return pricePerItem;
-
+			this.inventoryService,
+			this.crmService,
+		);
 	}
 
-	public async validateOrder(
-		order: TOrder
+	private async calculateOrderPricing(
+		order: TOrderProposal,
+	): Promise<any> {
+		const handler = this.getStrategy(order.pricingStrategy) as IOrderPricingStrategyHandler | false;
+
+		if (!handler) {
+			this.logger.error('No pricing strategy found', { orderId: order.orderId });
+			return false;
+		}
+
+		return handler(
+			order,
+
+			this.db,
+			this.logger,
+			this.uid,
+			this.eventProducer,
+
+			this.inventoryService,
+			this.crmService,
+		);
+	}
+
+	public async validateOrderProposal(
+		order: TOrderProposal,
 	): Promise<true | string> {
 		// This method will check if the given order is valid and sane.
 		// Validity is based on following:
@@ -280,7 +273,7 @@ export class OrderService implements IOrderService {
 		// else return reason why the order is invalid
 
 		// 1. Check if order is draft and contains all necessary fields
-		if (order.status !== EOrderStatus.draft) {
+		if (order.status !== EOrderStatus.DRAFT) {
 			return 'Order is not draft';
 		}
 		if (!order.items || !order.items.length) {
@@ -299,8 +292,8 @@ export class OrderService implements IOrderService {
 			return 'Error calculating order pricing';
 		}
 		
-		const isPricingValid = order.pricing.every((item, i) => {
-			const priceBreakdown = pricing.find((p) => p.productId === item.productId);
+		const isPricingValid = order.pricing.every((item : any) => {
+			const priceBreakdown = pricing.find((p: any) => p.productId === item.productId);
 			if (!priceBreakdown) return false;
 			return item.price === priceBreakdown.price && item.shippingCost === priceBreakdown.shippingCost && item.discount === priceBreakdown.discount;
 		});
@@ -310,33 +303,39 @@ export class OrderService implements IOrderService {
 		}
 
 		// 3. Check if allocations are valid
-		const allocationsValid = await Promise.all(order.allocations.map(async (alloc) => {
-			const stock = await this.inventoryService.getInventory(alloc.warehouseId, alloc.productId);
-			if (!stock) return false;
-			return stock >= alloc.quantity;
-		}));
-
-		if (allocationsValid.some((valid) => !valid)) {
-			return 'Order allocations are not valid';
+		const allocationsValid = await this.inventoryService.isAllocationValid(order.allocations);
+		if (allocationsValid === false) {
+			this.logger.error('Allocations cannot be satisfied', { orderId: order.orderId });
+			return 'Allocations cannot be satisfied';
 		}
 
 		// 4. Check if pricing is valid
-		const totalPrice = order.pricing.reduce((acc, item) => acc + item.price, 0);
-		const totalShippingCost = order.pricing.reduce((acc, item) => acc + item.shippingCost, 0);
-		const totalDiscount = order.pricing.reduce((acc, item) => acc + item.discount, 0);
-		const totalCost = totalPrice - totalDiscount + totalShippingCost;
-		const maxShippingCost = totalShippingCost * 0.15;
-		if (totalCost > maxShippingCost) {
-			return 'Order pricing is more than 15% of shipping cost';
+		const handler = this.getStrategy(order.validationStrategy) as IOrderValidationStrategyHandler | false;
+		if (!handler) {
+			this.logger.error('No validation strategy found', { orderId: order.orderId });
+			return 'No validation strategy found';
+		}
+		const validity = await handler(
+			order,
+			this.db,
+			this.logger,
+			this.uid,
+			this.eventProducer,
+
+			this.inventoryService,
+			this.crmService,
+		);
+		if (!validity) {
+			return 'Order validation failed';
 		}
 
 		// All checks passed
 		return true;
 	}
 
-	public async confirmOrder(
+	public async finalizeOrder(
 		orderId: TOrderId,
-		order: TOrder,
+		order: TOrderProposal,
 	): Promise<TOrderId | false> {
 		// This will first validate the order object using validateOrder()
 		// If valid:
@@ -348,63 +347,53 @@ export class OrderService implements IOrderService {
 		// else it will return the reason why the order is invalid
 
 		// 1. Validate the order
-		const validationResult = await this.validateOrder(order);
+		const validationResult = await this.validateOrderProposal(order);
 		if (validationResult !== true) {
 			this.logger.error('Order is not valid', { orderId, validationResult });
 			return false;
 		}
+		else this.logger.log('Order is valid', { orderId });
 
-		this.logger.log('Order is valid', { orderId });
 		// 2. Confirm the order and set the status to confirmed
-		const { query, commit } = await this.db.transact();
 		try {
 
-			// Update the order status to processing
-			const t1 = await query(`
+			// Update the order status to processing, add pricing
+			const t1 = await this.db.query(`
 				UPDATE orders
-				SET status = :statusProcessing
+				SET 
+					status = :statusProcessing,
+					pricing = :pricing
 				WHERE order_id = :orderId & & status = :statusDraft
 				RETURNING order_id, status;
 			`, {
 				orderId,
-				statusProcessing: EOrderStatus.processing,
-				statusDraft: EOrderStatus.draft,
+				statusProcessing: EOrderStatus.PROCESSING,
+				statusDraft: EOrderStatus.DRAFT,
+				pricing: JSON.stringify(order.pricing),
 			});
 
-			// Update the order items with the allocations
-			let q2 = `
-				UPDATE order_items
-				SET quantity = CASE product_id
-			`;
-			const params: Record<string, any> = {};
+			if (!t1.rowCount) {
+				this.logger.error('Could not confirm order', { orderId });
+				// TODO: generate rollback/cancel event
+				return false;
+			}
 
-			const itemsQueryParts = order.items.map((item, i) => {
-				const iStr = i.toString();
-				params[`product_id_${iStr}`] = item.productId;
-				params[`quantity_${iStr}`] = item.quantity;
-
-				return `WHEN :product_id_${iStr} THEN :quantity_${iStr}`;
-			});
-
-			q2 += itemsQueryParts.join(' ');
-			q2 += `END WHERE order_id = :orderId;`;
-
-			const t2 = await query(q2, {
-				...params,
-				orderId,
-			});
-
-			// Try committing the transaction
-			await Promise.all([t1, t2]);
-			await commit();
+			// Update the order with the allocations
+			const allocResult = await this.inventoryService.allocateStock(orderId, order.allocations);
+			if (!allocResult) {
+				this.logger.error('Could not allocate stock', { orderId });
+				// TODO: generate rollback/cancel event
+				return false;
+			}
 
 			// 3. Send the order to the event producer for further processing
-			this.eventProducer.emit({
-				eventType: EEventType.ORDER_PROCESSING,
-				payload: {
-					orderId: t1.rows[0].order_id,
-				},
-			});
+			// TODO: emit event for order processing
+			// this.eventProducer.emit({
+			// 	eventType: EEventType.ORDER_PROCESSING,
+			// 	payload: {
+			// 		orderId: t1.rows[0].order_id,
+			// 	},
+			// });
 
 			// Done
 			return t1.rows[0].order_id;
@@ -423,9 +412,21 @@ export class OrderService implements IOrderService {
 	): Promise<boolean> {
 		// This is used to set oprder status according to rules
 		// 1. A draft order can be set to processing
-		// 2. A processing order can be set to fulfilled or cancelled 
+		// 2. A processing order can be set to confirmed or cancelled 
+		// 3. A confirmed order can be set to fulfilled or cancelled
 
-		const expectedStatus = status === EOrderStatus.draft ? EOrderStatus.draft : EOrderStatus.processing;
+		const expectedStatus = (() => {
+			switch (status) {
+				case EOrderStatus.PROCESSING:
+					return EOrderStatus.DRAFT;
+				case EOrderStatus.CONFIRMED:
+					return EOrderStatus.PROCESSING;
+				case EOrderStatus.FULFILLED:
+					return EOrderStatus.CONFIRMED;
+				case EOrderStatus.CANCELLED:
+					return [EOrderStatus.PROCESSING, EOrderStatus.CONFIRMED];
+			}
+		})();
 
 		try {
 			const result = await this.db.query(`
@@ -455,13 +456,13 @@ export class OrderService implements IOrderService {
 
 	public async getOrderById(
 		orderId: TOrderId,
-	): Promise<TOrder | false> {
+	): Promise<TOrderDraft | TFinalizedOrder | false> {
 		try {
 
 			// Fetch main order record
 			const resOrder = await this.db.query(`
 				SELECT *
-				FROM orders
+				FROM scoms.orders
 				WHERE orders.order_id = :orderId
 			`, {
 				orderId
@@ -475,68 +476,48 @@ export class OrderService implements IOrderService {
 			// fetch meta records
 			const qItems = this.db.query(`
 				SELECT *
-				FROM order_items
+				FROM scoms.order_items
 				WHERE order_items.order_id = :orderId
 			`, {
 				orderId
 			});
 
-			const qPricing = this.db.query(`
-				SELECT *
-				FROM order_pricing
-				WHERE order_pricing.order_id = :orderId
-				LIMIT 1
-			`, {
-				orderId
-			});
-
-			const qAlloc = this.db.query(`
-				SELECT *
-				FROM order_allocations
-				WHERE order_allocations.order_id = :orderId
-			`, {
-				orderId
-			});
-
-			const qAddr = this.crmService.getAddress(resOrder.rows[0].address_id);
+			const qAlloc = this.inventoryService.getAllocatedStock(orderId);
 
 			const [
 				resItems,
-				resPricing,
 				resAllocations,
-				resAddr,
-			] = await Promise.all([qItems, qPricing, qAlloc, qAddr]);
-
-			if (!resAddr) {
-				this.logger.error('Address not found', { addressId: resOrder.rows[0].address_id });
-				return false;
-			}
+			] = await Promise.all([qItems, qAlloc]);
 
 			// All done
 			return {
 				orderId: resOrder.rows[0].order_id,
+
 				externalCustomerId: resOrder.rows[0].external_customer_id,
-				address: resAddr,
+				addressId: resOrder.rows[0].address_id,
 				agentId: resOrder.rows[0].agent_id,
+
 				status: resOrder.rows[0].status,
+				createdOn: resOrder.rows[0].created_on,
+
+				pricingStrategy: resOrder.rows[0].pricing_strategy,
+				shippingStrategy: resOrder.rows[0].shipping_strategy,
+				validationStrategy: resOrder.rows[0].validation_strategy,
 
 				items: resItems.rows.map((row: any) => ({
 					productId: row.product_id,
 					quantity: row.quantity,
 				})) as TOrderItem[],
 
-				pricing: resPricing.rows?.map((row: any) => ({
-					productId: row.product_id,
-					price: row.price,
-					shippingCost: row.shipping_cost,
-					discount: row.discount,
-				}) as TOrderPriceBreakdown) || [],
+				//@ts-ignore
+				pricing: resOrder.rows[0].pricing,
 
-				allocations: resAllocations.rows?.map((row: any) => ({
+				allocations: resAllocations.map((row: any) => ({
 					warehouseId: row.warehouse_id,
 					productId: row.product_id,
 					quantity: row.quantity,
-				}) as TOrderAllocation) || [],
+					status: row.status,
+				})) as TAllocation[],
 
 			};
 		}

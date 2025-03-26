@@ -67,7 +67,7 @@ export class PgTestService implements IPgService {
 
 // ---
 
-export const pgTestWithSchema = async (): Promise<PgTestService> => {
+export const setupPgTestWithSchema = async (): Promise<PgTestService> => {
 	const schemaSql = fs.readFileSync(
 		path.join(process.cwd(), 'scripts', 'sql', 'create.sql'),
 		'utf-8'

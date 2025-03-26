@@ -21,7 +21,7 @@ export class CRMService implements ICRMService {
 		try {
 			const result = await this.db.query(`
 				SELECT DISTINCT external_customer_id
-				FROM addresses;
+				FROM scoms.addresses;
 			`);
 
 			return result.rows.map((row: any) => row.external_customer_id);
@@ -43,17 +43,17 @@ export class CRMService implements ICRMService {
 			const addressId = this.uid();
 
 			const result = await this.db.query(`
-				INSERT INTO addresses (address_id, external_customer_id, coords, meta)
-				VALUES ($1, $2, point($3, $4), $5)
+				INSERT INTO scoms.addresses (address_id, external_customer_id, coords, meta)
+				VALUES (:addressId, :externalCustomerId, point(:x, :y), :meta)
 				ON CONFLICT (address_id) DO NOTHING
 				RETURNING address_id, external_customer_id, coords, meta;
-			`, [
+			`, {
 				addressId,
 				externalCustomerId,
-				coords.lng,
-				coords.lat,
+				x: coords.lng,
+				y: coords.lat,
 				meta,
-			]);
+			});
 
 			if (!result.rowCount) {
 				this.logger.error('Address already exists', { externalCustomerId, coords, meta });
@@ -80,7 +80,7 @@ export class CRMService implements ICRMService {
 		try {
 			const result = await this.db.query(`
 				SELECT address_id, external_customer_id, coords, meta
-				FROM addresses
+				FROM scoms.addresses
 				WHERE external_customer_id = $1
 			`, [externalCustomerId]);
 
@@ -104,7 +104,7 @@ export class CRMService implements ICRMService {
 		try {
 			const result = await this.db.query(`
 				SELECT address_id, external_customer_id, coords, meta
-				FROM addresses
+				FROM scoms.addresses
 				WHERE address_id = :addressId
 			`, {
 				addressId,

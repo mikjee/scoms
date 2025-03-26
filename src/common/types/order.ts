@@ -1,26 +1,53 @@
-import { TAddress, TAddressId, TUserId } from '@common/types/crm';
-import { TProductId, TWarehouseId } from '@common/types/inventory';
+import { TAddressId, TUserId } from '@common/types/crm';
+import { TAllocation, TAllocationProposal, TProductId } from '@common/types/inventory';
+
+// ---
 
 export type TOrderId = string;
+
 export enum EOrderStatus {
-	'draft' = 'draft',
-	'processing' = 'processing',
-	'fulfilled' = 'fulfilled',
-	'cancelled' = 'cancelled',
+	DRAFT = 'draft',
+	PROCESSING = 'processing',
+	CONFIRMED = 'confirmed',
+	FULFILLED = 'fulfilled',
+	CANCELLED = 'cancelled',
 };
-export type TOrderPricingId = string;
-export type TOrderAllocationId = string;
 
-export type TOrder = {
+export type TOrderStrategyId = string;
+
+// ---
+
+export type TNewOrderParams = {
+	externalCustomerId: TUserId,
+	addressId: TAddressId,
+	agentId: TUserId,
+
+	items: TOrderItem[],
+
+	pricingStrategy: TOrderStrategyId,
+	shippingStrategy: TOrderStrategyId,
+	validationStrategy: TOrderStrategyId,
+};
+
+export type TOrderDraft = TNewOrderParams & {
 	orderId: TOrderId;
-	externalCustomerId: TUserId;
-	address: TAddress;
-	agentId: TUserId;
-	status: EOrderStatus;
+	
+	status: EOrderStatus.DRAFT;
+	createdOn: Date;
+};
 
-	items: TOrderItem[];
-	pricing: TOrderPricing;
-	allocations: TOrderAllocation[];
+export type TOrderProposal = TOrderDraft & {
+	pricing: any,
+	allocations: TAllocationProposal[];
+	
+	status: EOrderStatus.DRAFT;
+};
+
+export type TFinalizedOrder = TOrderDraft & {
+	pricing: any,
+	allocations: TAllocation[];
+	
+	status: Exclude<EOrderStatus, EOrderStatus.DRAFT>;
 };
 
 export type TOrderItem = {
@@ -28,52 +55,32 @@ export type TOrderItem = {
 	quantity: number;
 };
 
-export type TOrderPriceBreakdown = {
-	productId: TProductId,
-	price: number,
-	shippingCost: number,
-	discount: number,
-};
-
-export type TOrderPricing = TOrderPriceBreakdown[];
-
-export type TOrderAllocation = {
-	warehouseId: TWarehouseId;
-	productId: TProductId;
-	quantity: number;
-	distance: number;
-};
-
 // ---
 
 export interface IOrderService {
 
-	createOrder(
-		externalCustomerId: TUserId,
-		addressId: TAddressId,
-		agentId: TUserId,
-		items: TOrderItem[],
-	): Promise<TOrder | false>;
+	createDraftOrder(
+		params: TNewOrderParams
+	): Promise<TOrderDraft | false>;
 
 	updateDraftOrder(
 		orderId: TOrderId,
-		items: TOrderItem[],
-		addressId: TAddressId,
-	): Promise<Partial<TOrder> | false>;
+		params: Partial<TNewOrderParams>,
+	): Promise<boolean>;
 
 	// ---
 
-	previewOrder(
+	createOrderProposal(
 		orderId: TOrderId,
-	): Promise<TOrder | false>;
+	): Promise<TOrderProposal | false>;
 
-	validateOrder(
-		order: TOrder
+	validateOrderProposal(
+		order: TOrderProposal
 	): Promise<true | string>
 
-	confirmOrder(
+	finalizeOrder(
 		orderId: TOrderId,
-		order: TOrder,
+		order: TOrderProposal,
 	): Promise<TOrderId | false>;
 
 	setOrderStatus(
@@ -85,7 +92,7 @@ export interface IOrderService {
 
 	getOrderById(
 		orderId: TOrderId,
-	): Promise<TOrder | false>;
+	): Promise<TOrderDraft | TFinalizedOrder | false>;
 
 	getOrdersByCustomerId(
 		customerId: TUserId,
