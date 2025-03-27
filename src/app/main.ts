@@ -18,6 +18,7 @@ import { TOrderId, TOrderProposal } from '@common/types/order';
 import { PostgreSqlContainer as pgContainer } from '@testcontainers/postgresql';
 import { Wait } from 'testcontainers';
 import { IPgConnectionArgs, IPgService } from '@common/types/pg';
+import { EEventType } from '@common/types/events';
 
 // ---
 
@@ -61,7 +62,7 @@ console.log("Begin Bootrap Monolith..");
 	const evSvc = new PGEventService(
 		pgsvc,
 		new ConsoleLogger("Event Service"),
-		uid('inv'),
+		uid('ev'),
 	);
 
 	// inventory service
@@ -106,8 +107,8 @@ console.log("Begin Bootrap Monolith..");
 	);
 
 	// All ready
-	// evSvc.start();
-	// orchestrator.start();
+	evSvc.start();
+	orchestrator.start();
 	console.log("Monolith Bootstrap Complete!");
 
 	// ---
@@ -214,10 +215,52 @@ console.log("Begin Bootrap Monolith..");
 
 	console.log("End Test");
 
+	evSvc.subscribe(EEventType.ORDER_PROCESSING, async (event) => {
+		console.log("Test event received 1:", event.eventType);
+	});
+
+	evSvc.subscribe(EEventType.ORDER_PROCESSING, async (event) => {
+		console.log("Test event received 2:", event.eventType);
+	});
+
+	evSvc.emit({
+		eventType: EEventType.ORDER_PROCESSING,
+		payload: {
+			orderId,
+			productId,
+			addressId,
+		},
+	});
+
+	evSvc.emit({
+		eventType: EEventType.ORDER_EXECUTED,
+		payload: {
+			orderId,
+			productId,
+			addressId,
+		},
+	});
+
+	evSvc.emit({
+		eventType: EEventType.ORDER_PROCESSING,
+		payload: {
+			orderId,
+			productId,
+			addressId,
+		},
+	});
+
+	setTimeout(() => {
+		evSvc.subscribe(EEventType.ORDER_EXECUTED, async (event) => {
+			console.log("Test event received 3:", event.eventType);
+		});
+	}, 5000);
+
 })();
 
 // ---
 
+// TODO: inject db namespace
 // TODO: too much error handling - select which levels and where to handle errors!
 // TODO: service-complaint return values from methods!
 // TODO: add dependency injection - tsyringe!

@@ -35,11 +35,14 @@ export class PGEventService implements IEventService {
 	public async emit(event: Omit<TEvent, "eventId">): Promise<TEvent | false> {
 		try {
 			const eventId = this.uid();
+
 			const result = await this.db.query(`
-				INSERT INTO events (event_id, event_type, payload)
-				VALUES ($1, $2, $3, $4, $5)
-				ON CONFLICT (event_id) DO NOTHING
-				RETURNING event_id, event_type, created_on, payload;
+				INSERT INTO scoms.events 
+					(event_id, event_type, payload, created_on)
+				VALUES 
+					(:eventId, :eventType, :payload, :createdOn)
+				RETURNING 
+					event_id, event_type, created_on, payload;
 			`, {
 				eventId,
 				eventType: event.eventType,
@@ -86,16 +89,26 @@ export class PGEventService implements IEventService {
 	private async getNextPendingEvent(topics: string[]): Promise<TEventModel | false>{
 		try {
 			const result = await this.db.query(`
-				UPDATE events
+				WITH selected AS (
+					SELECT 
+						event_id
+					FROM 
+						scoms.events
+					WHERE 
+						event_type = ANY(:topics)
+						AND status = :statusPending
+						AND created_on < now()
+					ORDER BY 
+						created_on ASC
+					LIMIT 1
+					FOR UPDATE SKIP LOCKED
+				)
+				UPDATE scoms.events e
 				SET status = :statusProcessing
-				WHERE 
-					event_type = ANY(:topics) AND 
-					status = :statusPending AND 
-					created_on < now()
-				SORT BY created_on ASC
-				LIMIT 1
-				RETURNING event_id, event_type, publisher, created_on, payload, meta, status
-				FOR UPDATE SKIP LOCKED;
+				FROM selected
+				WHERE e.event_id = selected.event_id
+				RETURNING 
+					e.event_id, e.event_type, e.created_on, e.payload, e.status;
 			`, {
 				statusProcessing: EEventStatus.PROCESSING,
 				statusPending: EEventStatus.PENDING,
@@ -115,9 +128,13 @@ export class PGEventService implements IEventService {
 	private async eventDelivered(eventId: TEventId): Promise<void> {
 		try {
 			await this.db.query(`
-				UPDATE events
-				SET status = :statusDelivered
-				WHERE event_id = :eventId AND status = :statusProcessing;
+				UPDATE 
+					scoms.events
+				SET 
+					status = :statusDelivered
+				WHERE 
+					event_id = :eventId AND 
+					status = :statusProcessing;
 			`, {
 				eventId,
 				statusDelivered: EEventStatus.DELIVERED,
@@ -134,9 +151,13 @@ export class PGEventService implements IEventService {
 	private async eventFailed(eventId: string): Promise<void> {
 		try {
 			await this.db.query(`
-				UPDATE events
-				SET status = :statusFailed
-				WHERE event_id = :eventId AND status = :statusProcessing;
+				UPDATE 
+					scoms.events
+				SET 
+					status = :statusFailed
+				WHERE 
+					event_id = :eventId AND 
+					status = :statusProcessing;
 			`, {
 				eventId,
 				statusFailed: EEventStatus.FAILED,
