@@ -27,6 +27,24 @@ export const defaultPricing: IOrderPricingStrategyHandler = async (
 	// (sum of all items prices) - (volume discounts) + (shipping cost)
 	// Then it will return the pricing object, with accurate breakdown of the pricing, including discount and shipping cost
 
+	// Volume discount helper function
+	const getVolumeDiscount = (quantity: number) => {
+		// The logic for volume discount is such - 
+		/*
+			• 25+ units: 5% discount
+			• 50+ units: 10% discount
+			• 100+ units: 15% discount
+			• 250+ units: 20% discount
+		*/
+
+		if (quantity >= 250) return 0.2;
+		if (quantity >= 100) return 0.15;
+		if (quantity >= 50) return 0.1;
+		if (quantity >= 25) return 0.05;
+
+		return 0; // No discount for now
+	};
+
 	// First get price and weight for all products in the order
 	let products = await Promise.all(order.items.map(async (item) => {
 		const product = await inventoryService.getProduct(item.productId);
@@ -38,9 +56,8 @@ export const defaultPricing: IOrderPricingStrategyHandler = async (
 
 		return {
 			productId: product.productId,
-			price: parseInt(product.attributes.price!.value!),
-			weight: parseInt(product.attributes.weight!.value!),
-			volumeDiscount: parseInt(product.attributes.volumeDiscount!.value!),
+			price: parseInt(product.attributes.price!.value! as string),
+			weight: parseInt(product.attributes.weight!.value! as string),
 		};
 	}));
 
@@ -50,7 +67,7 @@ export const defaultPricing: IOrderPricingStrategyHandler = async (
 			productId: product.productId,
 			price: product.price * order.items[i].quantity,
 			shippingCost: 0,
-			discount: product.volumeDiscount * order.items[i].quantity,
+			discount: getVolumeDiscount(order.items[i].quantity) * product.price * order.items[i].quantity,
 		};
 	});
 

@@ -6,6 +6,7 @@ import { EOrderStatus, IOrderService, TFinalizedOrder, TNewOrderParams, TOrderDr
 import { IPgService } from '@common/types/pg';
 import { IUIDGenerator } from '@common/types/uid';
 import { IOrderPricingStrategyHandler, IOrderShippingStrategyHandler, IOrderStrategyHandler, IOrderValidationStrategyHandler } from './types';
+import _ from 'lodash';
 
 // ---
 
@@ -195,7 +196,7 @@ export class OrderService implements IOrderService {
 		// Then it will return the order with the pricing and allocations
 
 		try {
-			const order = await this.getOrderById(orderId);
+			const order = await this.getOrder(orderId);
 
 			if (!order) {
 				this.logger.error('Order not found', { orderId });
@@ -273,35 +274,18 @@ export class OrderService implements IOrderService {
 		// else return reason why the order is invalid
 
 		// 1. Check if order is draft and contains all necessary fields
-		if (order.status !== EOrderStatus.DRAFT) {
-			return 'Order is not draft';
-		}
-		if (!order.items || !order.items.length) {
-			return 'Order does not contain any items';
-		}
-		if (!order.allocations || !order.allocations.length) {
-			return 'Order does not contain warehouse allocations';
-		}
-		if (!order.pricing || !order.pricing.length) {
-			return 'Order does not contain pricing breakdown';
-		}
+		if (order.status !== EOrderStatus.DRAFT) return 'Order is not draft';
+		if (!order.items || !order.items.length) return 'Order does not contain any items';
+		if (!order.allocations || !order.allocations.length) return 'Order does not contain warehouse allocations';
+		if (!order.pricing) return 'Order does not contain pricing breakdown';
 
 		// 2. Check if pricing is valid
 		const pricing = await this.calculateOrderPricing(order);
-		if (!pricing) {
-			return 'Error calculating order pricing';
-		}
+		if (!pricing) return 'Error calculating order pricing';
 		
-		const isPricingValid = order.pricing.every((item : any) => {
-			const priceBreakdown = pricing.find((p: any) => p.productId === item.productId);
-			if (!priceBreakdown) return false;
-			return item.price === priceBreakdown.price && item.shippingCost === priceBreakdown.shippingCost && item.discount === priceBreakdown.discount;
-		});
+		const isPricingValid = _.isEqual(pricing, order.pricing);
+		if (!isPricingValid) return 'Order pricing is not valid';
 		
-		if (!isPricingValid) {
-			return 'Order pricing is not valid';
-		}
-
 		// 3. Check if allocations are valid
 		const allocationsValid = await this.inventoryService.isAllocationValid(order.allocations);
 		if (allocationsValid === false) {
@@ -312,9 +296,10 @@ export class OrderService implements IOrderService {
 		// 4. Check if pricing is valid
 		const handler = this.getStrategy(order.validationStrategy) as IOrderValidationStrategyHandler | false;
 		if (!handler) {
-			this.logger.error('No validation strategy found', { orderId: order.orderId });
-			return 'No validation strategy found';
+			this.logger.error(`Validation strategy (${order.validationStrategy}) is not registered!`, { orderId: order.orderId });
+			return `Validation strategy (${order.validationStrategy}) is not registered!`;
 		}
+
 		const validity = await handler(
 			order,
 			this.db,
@@ -325,9 +310,7 @@ export class OrderService implements IOrderService {
 			this.inventoryService,
 			this.crmService,
 		);
-		if (!validity) {
-			return 'Order validation failed';
-		}
+		if (!validity) return `Order validation strategy (${order.validationStrategy}) returned false - order is invalid!`;
 
 		// All checks passed
 		return true;
@@ -359,17 +342,20 @@ export class OrderService implements IOrderService {
 
 			// Update the order status to processing, add pricing
 			const t1 = await this.db.query(`
-				UPDATE orders
+				UPDATE scoms.orders
 				SET 
 					status = :statusProcessing,
 					pricing = :pricing
-				WHERE order_id = :orderId & & status = :statusDraft
-				RETURNING order_id, status;
+				WHERE 
+					order_id = :orderId AND 
+					status = :statusDraft
+				RETURNING 
+					order_id, status;
 			`, {
 				orderId,
 				statusProcessing: EOrderStatus.PROCESSING,
 				statusDraft: EOrderStatus.DRAFT,
-				pricing: JSON.stringify(order.pricing),
+				pricing: order.pricing,
 			});
 
 			if (!t1.rowCount) {
@@ -379,7 +365,11 @@ export class OrderService implements IOrderService {
 			}
 
 			// Update the order with the allocations
-			const allocResult = await this.inventoryService.allocateStock(orderId, order.allocations);
+			const allocResult = await this.inventoryService.allocateStock(
+				orderId, 
+				order.allocations
+			);
+
 			if (!allocResult) {
 				this.logger.error('Could not allocate stock', { orderId });
 				// TODO: generate rollback/cancel event
@@ -454,7 +444,7 @@ export class OrderService implements IOrderService {
 
 	// ---
 
-	public async getOrderById(
+	public async getOrder(
 		orderId: TOrderId,
 	): Promise<TOrderDraft | TFinalizedOrder | false> {
 		try {
@@ -511,14 +501,7 @@ export class OrderService implements IOrderService {
 
 				//@ts-ignore
 				pricing: resOrder.rows[0].pricing,
-
-				allocations: resAllocations.map((row: any) => ({
-					warehouseId: row.warehouse_id,
-					productId: row.product_id,
-					quantity: row.quantity,
-					status: row.status,
-				})) as TAllocation[],
-
+				allocations: resAllocations,
 			};
 		}
 		catch (error) {

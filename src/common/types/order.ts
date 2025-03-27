@@ -90,7 +90,7 @@ export interface IOrderService {
 
 	// ---
 
-	getOrderById(
+	getOrder(
 		orderId: TOrderId,
 	): Promise<TOrderDraft | TFinalizedOrder | false>;
 

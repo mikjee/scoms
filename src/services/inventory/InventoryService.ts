@@ -1,10 +1,11 @@
 import { IEventProducer } from '@common/types/events';
-import { IInventoryService, TAllocation, TAllocationProposal, TProduct, TProductAttribute, TProductAttrName, TProductId, TWarehouse, TWarehouseId } from '@common/types/inventory';
+import { EAllocationStatus, IInventoryService, TAllocation, TAllocationProposal, TProduct, TProductAttribute, TProductAttrName, TProductId, TWarehouse, TWarehouseId } from '@common/types/inventory';
 import { PartialBy } from '@common/lib/util';
 import { IPgService } from '@common/types/pg';
 import { ILoggerService } from '@common/types/logger';
 import { IUIDGenerator } from '@common/types/uid';
 import { TOrderId } from '@common/types/order';
+import { TNearestWarehouse } from '@services/inventory/types';
 
 // ---
 
@@ -171,28 +172,37 @@ export class InventoryService implements IInventoryService {
 	}
 
 	public async getProduct(idOrName: TProductId | string): Promise<TProduct | false> {
-		const product = await this.db.query(`
-			SELECT p.product_id, p.product_name, pa.attribute_id, pa.attribute, pa.value, pa.meta
-			FROM scoms.products AS p
-			LEFT JOIN scoms.product_attributes AS pa ON p.product_id = pa.product_id
-			WHERE p.product_id = :idOrName OR p.product_name = :idOrName
-			LIMIT 1
+		const prdResult = await this.db.query(`
+			SELECT 
+				product_id, 
+				product_name
+			FROM scoms.products
+			WHERE product_id = :idOrName OR product_name = :idOrName
+			LIMIT 1;
 		`, { idOrName });
 
-		if (!product) return false;
+		if (!prdResult || !prdResult.rowCount) return false;
+		
+		const attrResult = await this.db.query(`
+			SELECT
+				*
+			FROM scoms.product_attributes
+			WHERE product_id = :productId;
+		`, { productId: prdResult.rows[0].product_id });
+
 		const attributes: Record<TProductAttrName, TProductAttribute> = {};
 
-		if (product.attribute_id) {
-			attributes[product.attribute] = {
-				attributeId: product.attribute_id,
-				value: product.value,
-				meta: product.meta,
+		attrResult.rows.forEach((row: any) => {
+			attributes[row.attribute] = {
+				attributeId: row.attribute_id,
+				value: row.value,
+				meta: row.meta,
 			};
-		}
+		});
 
 		return {
-			productId: product.product_id,
-			productName: product.product_name,
+			productId: prdResult.rows[0].product_id,
+			productName: prdResult.rows[0].product_name,
 			attributes,
 		};
 	}
@@ -279,20 +289,23 @@ export class InventoryService implements IInventoryService {
 			const result = await this.db.query(`
 				UPDATE scoms.inventory
 				SET quantity = quantity - :quantity
-				WHERE warehouse_id = :warehouseId AND product_id = :productId AND quantity >= :quantity
-				RETURNING quantity
+				WHERE 
+					warehouse_id = :warehouseId AND 
+					product_id = :productId AND 
+					quantity >= :quantity
+				RETURNING quantity;
 			`, {
 				warehouseId,
 				productId,
 				quantity,
 			});
 
-			if (!result) {
+			if (!result || !result.rowCount) {
 				this.logger.error('subtractInventory failed: No result returned');
 				throw new Error("subtractInventory failed: No result returned");
 			}
 
-			return result?.quantity || false;
+			return result.rows[0].quantity || false;
 		}
 		catch (err) {
 			this.logger.error('subtractInventory failed:', err);
@@ -309,16 +322,19 @@ export class InventoryService implements IInventoryService {
 			const result = await this.db.query(`
 				SELECT i.quantity
 				FROM scoms.inventory AS i
-				LEFT JOIN scoms.products AS p ON i.product_id = p.product_id
-				WHERE i.warehouse_id = :warehouseId AND (p.product_id = :productidOrName OR p.product_name = :productidOrName)
-				LIMIT 1
+				LEFT JOIN scoms.products AS p 
+					ON i.product_id = p.product_id
+				WHERE 
+					i.warehouse_id = :warehouseId AND 
+					(p.product_id = :productidOrName OR p.product_name = :productidOrName)
+				LIMIT 1;
 			`, {
 				warehouseId,
 				productidOrName,
 			});
 
-			if (!result) return false;
-			return result.quantity || false;
+			if (!result || !result.rowCount) return false;
+			return result.rows[0].quantity || false;
 		} catch (err) {
 			this.logger.error('getInventory failed:', err);
 			throw err;
@@ -333,7 +349,7 @@ export class InventoryService implements IInventoryService {
 		// This will try to allocate stock from the warehouse, and check if it is possible
 		// It will run an allocation and then rollback the transaction
 
-		const { query, commit } = await this.db.transact();
+		const { query, rollback } = await this.db.transact();
 		const orderId = this.uid();
 		let flag = true;
 
@@ -352,13 +368,29 @@ export class InventoryService implements IInventoryService {
 				);
 
 				const allocQuery = query(`
-					INSERT INTO scoms.allocations (order_id, warehouse_id, product_id, quantity, status)
-					VALUES (:orderId, :warehouseId, :productId, :quantity, 'CONFIRMED')
+					INSERT INTO scoms.allocations (
+						allocation_id,
+						order_id, 
+						warehouse_id, 
+						product_id, 
+						quantity, 
+						status
+					)
+					VALUES (
+						:allocationId,
+						:orderId, 
+						:warehouseId, 
+						:productId, 
+						:quantity, 
+						:status
+					)
 				`, {
+					allocationId: this.uid(),
 					orderId,
 					warehouseId,
 					productId,
 					quantity,
+					status: EAllocationStatus.PENDING,
 				});
 
 				const [updResult, allocResult] = await Promise.all([updQuery, allocQuery]);
@@ -372,7 +404,7 @@ export class InventoryService implements IInventoryService {
 			flag = false;
 		}
 		finally {
-			await query('ROLLBACK');
+			await rollback();
 		}
 
 		return flag;
@@ -382,15 +414,85 @@ export class InventoryService implements IInventoryService {
 		orderId: TOrderId,
 		allocations: TAllocationProposal[],
 	): Promise<boolean> {
-		// This will deduct stock from the warehouse, and create allocation record with status set to confirmed
-		// All warehouse-product pairs must be deducted as one large all-or-none transaction
-		// If any of the pairs fails, the whole transaction will be rolled back, including allocation record creation
-
-		const { query, commit } = await this.db.transact();
+		// This will create allocation record with status set to pending
+		// This will NOT deduct any stocks from the warehouse
 
 		try {
-			await Promise.all(allocations.map(async ({ warehouseId, productId, quantity }) => {
-				const updQuery = query(`
+			let allocQuery = `
+				INSERT INTO scoms.allocations (
+					allocation_id,
+					order_id, 
+					warehouse_id, 
+					product_id, 
+					quantity, 
+					status
+				)
+				VALUES 
+			`;
+
+			const paramObject: Record<string, string | number | null> = {};
+
+			allocations.forEach(({ warehouseId, productId, quantity }, i) => {
+				const iStr = i.toString();
+				const allocId = this.uid();
+				
+				paramObject[`allocation_id_${iStr}`] = allocId;
+				paramObject[`warehouse_id_${iStr}`] = warehouseId;
+				paramObject[`product_id_${iStr}`] = productId;
+				paramObject[`quantity_${iStr}`] = quantity;
+
+				allocQuery += `(
+					:allocation_id_${iStr}, 
+					:orderId, 
+					:warehouse_id_${iStr}, 
+					:product_id_${iStr}, 
+					:quantity_${iStr}, 
+					:status
+				)`;
+
+				if (i < allocations.length - 1) allocQuery += ',';
+			});
+			
+			const result = await this.db.query(allocQuery, {
+				...paramObject,
+				status: EAllocationStatus.PENDING,
+				orderId,
+			});
+
+			if (!result || !result.rowCount) {
+				this.logger.error('allocateInventory failed: No result returned');
+				return false;
+			}
+			
+			return true;
+		} catch (err) {
+			this.logger.error('allocateInventory failed:', err);
+			return false;
+		}
+	}
+
+	public async confirmAllocation(
+		orderId: TOrderId,
+	): Promise<boolean> {
+		// This will set the status of the allocation to confirmed, and remove the stock from the warehouse
+
+		const allocations = await this.getAllocatedStock(orderId);
+
+		if (!allocations.length) {
+			this.logger.error('confirmAllocation failed: No allocations found for orderId', orderId);
+			return false;
+		}
+
+		if (allocations.some((a) => a.status !== EAllocationStatus.PENDING)) {
+			this.logger.error('confirmAllocation failed: Some allocations are not in pending state!', orderId);
+			return false;
+		}
+
+		const { query, commit, rollback } = await this.db.transact();
+		try {
+
+			const invResults = await Promise.all(allocations.map(async ({ warehouseId, productId, quantity }) => {				
+				const invQuery = await query(`
 						UPDATE scoms.inventory
 						SET quantity = quantity - :quantity
 						WHERE 
@@ -402,28 +504,48 @@ export class InventoryService implements IInventoryService {
 					{ warehouseId, productId, quantity }
 				);
 
-				const allocQuery = query(`
-					INSERT INTO scoms.allocations (order_id, warehouse_id, product_id, quantity, status)
-					VALUES (:orderId, :warehouseId, :productId, :quantity, 'CONFIRMED')
-				`, {
-					orderId,
-					warehouseId,
-					productId,
-					quantity,
-				});
+				if (!invQuery || !invQuery.rowCount) {
+					this.logger.error('confirmAllocation failed: No result returned', warehouseId, productId);
+					return false;
+				}
 
-				const [updResult, allocResult] = await Promise.all([updQuery, allocQuery]);
+				if (!invQuery.rows[0]?.quantity || invQuery.rows[0].quantity < 0) {
+					this.logger.error('confirmAllocation failed: Not enough stock', warehouseId, productId);
+					return false;
+				}
 
-				if (!allocResult) throw `Failed to create allocation record for ${warehouseId}/${productId}`;
-				if (!updResult) throw `Failed to update inventory for ${warehouseId}/${productId}`;
-				if (!updResult.rowCount) throw `Failed to update inventory for ${warehouseId}/${productId}`;
-				if (!allocResult.rowCount) throw `Failed to create allocation record for ${warehouseId}/${productId}`;
+				return true;
 			}));
+
+			if (invResults.some((r) => !r)) {
+				this.logger.error('confirmAllocation failed: Some inventory updates failed', orderId);
+				await rollback();
+				return false;
+			}
+
+			const allocQuery = await query(`
+				UPDATE scoms.allocations
+					SET status = :statusConfirmed
+				WHERE 
+					order_id = :orderId AND 
+					status = :statusPending;
+			`, { 
+				orderId,
+				statusPending: EAllocationStatus.PENDING,
+				statusConfirmed: EAllocationStatus.CONFIRMED,
+			});
+
+			if (!allocQuery || !allocQuery.rowCount) {
+				this.logger.error('Failed to update allocation status', orderId);
+				await rollback();
+				return false;
+			}
 
 			await commit();
 			return true;
-		} catch (err) {
-			this.logger.error('allocateInventory failed:', err);
+		}
+		catch (err) {
+			this.logger.error('confirmAllocation failed:', err);
 			await query('ROLLBACK');
 			return false;
 		}
@@ -434,21 +556,22 @@ export class InventoryService implements IInventoryService {
 	): Promise<boolean> {
 		// This will set the status of the allocation to cancelled, and add the stock back to the warehouse
 
-		const { query, commit } = await this.db.transact();
+		const { query, commit, rollback } = await this.db.transact();
 		try {
 			const allocResult = await query(`
 				UPDATE scoms.allocations
 					SET status = 'CANCELLED'
 				WHERE 
 					order_id = :orderId AND 
-					status IN ('CONFIRMED', 'PENDING')
+					status IN ('CONFIRMED', 'PENDING');
 				`,
 				{ orderId }
 			);
 
 			if (!allocResult || !allocResult.rowCount) {
 				this.logger.error('cancelAllocation failed: No result returned');
-				throw new Error("cancelAllocation failed: No result returned");
+				rollback();
+				return false;
 			}
 
 			const updResult = await query(`
@@ -464,7 +587,8 @@ export class InventoryService implements IInventoryService {
 
 			if (!updResult || !updResult.rowCount) {
 				this.logger.error('cancelAllocation failed: No result returned');
-				throw new Error("cancelAllocation failed: No result returned");
+				await rollback();
+				return false;
 			}
 
 			await commit();
@@ -483,12 +607,14 @@ export class InventoryService implements IInventoryService {
 		// This will get all allocations for the order, and return them as a list of warehouse-product pairs
 		try {
 			const result = await this.db.query(`
-				SELECT warehouse_id, product_id, quantity, status
+				SELECT 
+					warehouse_id, 
+					product_id, 
+					quantity, 
+					status
 				FROM scoms.allocations
-				WHERE order_id = :orderId
+				WHERE order_id = :orderId;
 			`, { orderId });
-
-			if (!result) return [];
 
 			return result.rows.map((row: any) => ({
 				warehouseId: row.warehouse_id,
@@ -504,17 +630,12 @@ export class InventoryService implements IInventoryService {
 	}
 
 	// ---
-	
+
 	public async getNearestWarehouses(
 		productId: TProductId,
 		quantity: number,
 		destinationCoords: { lat: number; lng: number }
-	): Promise<{
-		warehouse: TWarehouse
-		stock: number
-		allocation: number
-		distance: number
-	}[]> {
+	): Promise<TNearestWarehouse[]> {
 		// This will perform geospatial query to get nearest warehouse with positive stock
 		// The idea is to get 10 nearest warehouses and in the sorted order of increasing distance
 		// then try subtract stock from each until we reach the required quantity
@@ -526,34 +647,47 @@ export class InventoryService implements IInventoryService {
 
 			const queryHelper = async (start: number) => {
 				const result = await this.db.query(`
-					SELECT w.warehouse_id, w.warehouse_name, w.city, w.coords, i.quantity,
-						ROUND(ST_Distance(ST_MakePoint(w.coords), ST_MakePoint(:lat, :lng))::numeric, 2) AS distance
+					SELECT 
+						w.warehouse_id, 
+						w.warehouse_name, 
+						w.city, 
+						w.coords[0] AS lat,
+						w.coords[1] AS lng, 
+						i.quantity,
+
+						ROUND(ST_Distance(
+							w.coords::geometry,
+							ST_MakePoint(:lat, :lng)::geometry
+						)::numeric, 2) AS distance
+
 					FROM scoms.warehouses AS w
 					LEFT JOIN scoms.inventory AS i ON w.warehouse_id = i.warehouse_id AND i.product_id = :productId
 					WHERE i.quantity > 0
 					ORDER BY distance ASC
-					LIMIT 10 STARTING AT :start
+					LIMIT 10 OFFSET :start
 				`, {
 					productId,
 					lat: destinationCoords.lat,
 					lng: destinationCoords.lng,
 					start,
-				});
+				}, true);
 
-				if (!result || !result.length) return [];
+				if (!result || !result.rowCount) return [];
 
-				const wares = result.map((row: any) => ({
+				const wares: TNearestWarehouse[] = result.rows.map((row: any) => ({
 					warehouse: {
 						warehouseId: row.warehouse_id,
 						warehouseName: row.warehouse_name,
 						city: row.city,
 						coords: {
-							lat: row.coords[1],
-							lng: row.coords[0],
+							lat: row.lat,
+							lng: row.lng,
 						},
 					},
+
 					stock: row.quantity,
 					distance: row.distance,
+					allocation: 0,
 				}));
 
 				return wares;
@@ -562,14 +696,10 @@ export class InventoryService implements IInventoryService {
 			let flag = true;
 			let start = 0;
 			let totalAllocated = 0;
+			let warehouses: TNearestWarehouse[] = [];
 
-			let warehouses: {
-				warehouse: TWarehouse
-				stock: number
-				allocation: number
-				distance: number
-			}[] = [];
-
+			// until we reach the required quantity or run out of warehouses
+			// we will keep querying the next 10 warehouses and try to allocate stock from them
 			while (flag) {
 				const wares = await queryHelper(start);
 				if (!wares.length) break;

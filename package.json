@@ -26,6 +26,7 @@
 	"description": "",
 	"dependencies": {
 		"@electric-sql/pglite": "^0.2.17",
+		"lodash": "^4.17.21",
 		"nanoid": "^5.1.5",
 		"pg": "^8.14.1",
 		"yesql": "^7.0.0"
@@ -34,7 +35,9 @@
 		"@babel/preset-env": "^7.26.9",
 		"@babel/preset-typescript": "^7.27.0",
 		"@eslint/js": "^9.23.0",
+		"@testcontainers/postgresql": "^10.23.0",
 		"@types/jest": "^29.5.14",
+		"@types/lodash": "^4.17.16",
 		"@types/node": "^22.13.13",
 		"@types/pg": "^8.11.11",
 		"@types/yesql": "^4.1.4",

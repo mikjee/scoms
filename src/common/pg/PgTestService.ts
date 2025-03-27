@@ -14,7 +14,7 @@ type LiteQueryResult = {
 
 // ----------------------------------
 
-export class PgTestService implements IPgService {
+class PgTestService {
 	private db: PGlite;
 
 	constructor() {

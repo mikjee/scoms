@@ -50,8 +50,8 @@ export class CRMService implements ICRMService {
 			`, {
 				addressId,
 				externalCustomerId,
-				x: coords.lng,
-				y: coords.lat,
+				x: coords.lat,
+				y: coords.lng,
 				meta,
 			});
 
@@ -103,7 +103,12 @@ export class CRMService implements ICRMService {
 	public async getAddress(addressId: TAddressId): Promise<TAddress | false> {
 		try {
 			const result = await this.db.query(`
-				SELECT address_id, external_customer_id, coords, meta
+				SELECT 
+					address_id, 
+					external_customer_id, 
+					coords[0] AS lat,
+					coords[1] AS lng, 
+					meta
 				FROM scoms.addresses
 				WHERE address_id = :addressId
 			`, {
@@ -119,8 +124,8 @@ export class CRMService implements ICRMService {
 				addressId: result.rows[0].address_id,
 				externalCustomerId: result.rows[0].external_customer_id,
 				coords: {
-					lat: result.rows[0].coords.y,
-					lng: result.rows[0].coords.x,
+					lat: result.rows[0].lat,
+					lng: result.rows[0].lng,
 				},
 				meta: result.rows[0].meta,
 			};

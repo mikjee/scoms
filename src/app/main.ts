@@ -14,7 +14,10 @@ import { defaultValidation } from '@services/order/strategies/defaultValidation'
 import { setupPgTestWithSchema } from '@common/pg/PgTestService';
 import { TProductId } from '@common/types/inventory';
 import { TAddressId } from '@common/types/crm';
-import { TOrderId } from '@common/types/order';
+import { TOrderId, TOrderProposal } from '@common/types/order';
+import { PostgreSqlContainer as pgContainer } from '@testcontainers/postgresql';
+import { Wait } from 'testcontainers';
+import { IPgConnectionArgs, IPgService } from '@common/types/pg';
 
 // ---
 
@@ -24,10 +27,35 @@ console.log("Begin Bootrap Monolith..");
 		
 	// Load env vars
 	dotenv.config();
+	const pgConfig: IPgConnectionArgs = {
+		user: process.env.PGUSER,
+		password: process.env.PGPASSWORD,
+		host: process.env.PGHOST,
+		port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
+		database: process.env.PGDATABASE,
+	};
+
+	// Start test container
+	const container = await new pgContainer("postgis/postgis:13-3.1-alpine")
+		.withExposedPorts(5432)
+		.withDatabase("scoms")
+		.start();
+
+	const pgContainerConfig: IPgConnectionArgs = {
+		user: container.getUsername(),
+		password: container.getPassword(),
+		host: container.getHost(),
+		port: container.getMappedPort(5432),
+		database: 'scoms',
+	};
 
 	// pg service
-	// const pgsvc = new PgService();
-	const pgsvc = await setupPgTestWithSchema();
+	const pgsvc: IPgService = await new PgService(
+		pgContainerConfig,
+		new ConsoleLogger("Postgres Service"),
+	);
+	await pgsvc.waitForReady();
+	await pgsvc.execFile('create.sql');
 
 	// event service - both producer & consumer
 	const evSvc = new PGEventService(
@@ -84,11 +112,13 @@ console.log("Begin Bootrap Monolith..");
 
 	// ---
 
+	console.log("Begin Test...");
+
 	// Test the services
 	let addressId: TAddressId = '';
 	await crmSvc.createAddress(
 		"customer-1",
-		{ lat: 1, lng: 2 },
+		{ lat: 4, lng: 5 },
 		{ meta: { test: "test" } },
 	).then((address) => {
 		console.log("Created address:", address);
@@ -98,7 +128,7 @@ console.log("Begin Bootrap Monolith..");
 	let productId: TProductId = '';
 	await invSvc.createProduct(
 		"Product 1",
-		{ price: { value: 100} , weight: { value: 1} },
+		{price: {value: 100} , weight: {value: 1}},
 	).then((product) => {
 		console.log("Created product:", product);
 		productId = product.productId;
@@ -148,6 +178,7 @@ console.log("Begin Bootrap Monolith..");
 		orderId = order.orderId;
 	});
 
+	let proposedOrder: TOrderProposal;
 	await orderSvc.createOrderProposal(
 		orderId,
 	).then((order) => {
@@ -155,15 +186,39 @@ console.log("Begin Bootrap Monolith..");
 			console.error("Failed to create order proposal");
 			return;
 		}
+		proposedOrder = order;
 		console.log("Created order proposal:", order);
 	});
 
+	const result = await orderSvc.finalizeOrder(
+		orderId,
+		proposedOrder!,
+	);
+	console.log("is order finalized:", result);
 
+	const finalOrder = await orderSvc.getOrder(orderId);
+	console.log("Finalized order:", finalOrder);
+
+	const confirmResult = await invSvc.confirmAllocation(
+		orderId,
+	);
+	console.log("is allocation confirmed:", confirmResult);
+
+	const orderAllocations = await invSvc.getAllocatedStock(orderId);
+	const inventory = await invSvc.getInventory(
+		"warehouse-1",
+		productId,
+	);
+	console.log("Inventory after allocation:", inventory);
+	console.log("Order allocations:", orderAllocations);
+
+	console.log("End Test");
 
 })();
 
 // ---
 
+// TODO: too much error handling - select which levels and where to handle errors!
 // TODO: service-complaint return values from methods!
 // TODO: add dependency injection - tsyringe!
 // TODO: add query builder kysely!

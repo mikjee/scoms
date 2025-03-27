@@ -1,16 +1,9 @@
-import { IPgService } from '@common/types/pg';
+import { ILoggerService } from '@common/types/logger';
+import { IPgConnectionArgs as IPGConnectionArgs, IPgService } from '@common/types/pg';
 import pg from 'pg';
 import { pg as named } from 'yesql';
-
-// ---
-
-export interface IPGConnArgs {
-	user?: string;
-	password?: string;
-	host?: string;
-	port?: number;
-	database?: string;
-};
+import fs from 'fs';
+import path from 'path';
 
 // ---
 
@@ -23,17 +16,8 @@ export class PgService implements IPgService {
 	// ---
 
 	constructor(
-		protected readonly connectionArgs: IPGConnArgs = {
-			user: process.env.PGUSER,
-			password: process.env.PGPASSWORD,
-			host: process.env.PGHOST,
-			port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
-			database: process.env.PGDATABASE,
-		},
-
-		protected log: typeof console.log = console.log,
-		protected error: typeof console.error = console.error,
-		protected warn: typeof console.warn = console.warn,
+		protected readonly connectionArgs: IPGConnectionArgs,
+		private readonly logger: ILoggerService,
 	) {
 		this.connect();
 	}
@@ -43,15 +27,7 @@ export class PgService implements IPgService {
 		this.pool = new pg.Pool(this.connectionArgs);
 
 		this.pool.on('error', (err) => {
-			this.error('PostgreSQL connection error!', err);
-		});
-
-		this.pool.on('connect', () => {
-			this.log('PostgreSQL connection established!');
-		});
-
-		this.pool.on('remove', () => {
-			this.log('PostgreSQL connection removed!');
+			this.logger.error('PostgreSQL connection error!', err);
 		});
 	}
 
@@ -62,13 +38,25 @@ export class PgService implements IPgService {
 		}
 	}
 
-	public async testConnection() {
-		if (!this.pool) throw new Error('No connection pool available!');
+	public async waitForReady(maxRetries = 20, delayMs = 500): Promise<void> {
+		this.logger.log(`Waiting for PostgreSQL to be ready (max retries = ${maxRetries})...`);
 
-		const client = await this.pool.connect();
-		const result = await client.query('SELECT NOW() AS now');
-		client.release();
-		return result.rows[0].now;
+		for (let attempt = 1; attempt <= maxRetries; attempt++) {
+			try {
+				const client = new pg.Client(this.connectionArgs);
+				await client.connect();
+				await client.end();
+
+				this.logger.log('PostgreSQL is ready!');
+				return;
+			} catch (err) {
+				if (attempt === maxRetries) {
+					this.logger.error('PostgreSQL not ready after max retries', err);
+					throw new Error(`PostgreSQL not ready after ${maxRetries} attempts`);
+				}
+				await new Promise(res => setTimeout(res, delayMs));
+			}
+		}
 	}
 
 	// ---
@@ -84,13 +72,13 @@ export class PgService implements IPgService {
 		return new Promise((resolve, reject) =>	(client || this.pool)!.query(
 			(() => {
 				const q = named(queryStr)(dataPool);
-				if (debugLog) this.log(q);
+				if (debugLog) this.logger.log("query logged", q);
 				return q;
 			})(),
 
 			(err, res) => {
 				if (err) {
-					this.error(err);
+					this.logger.error("error", err);
 					reject(err);
 				} 
 				else resolve(res);
@@ -98,9 +86,21 @@ export class PgService implements IPgService {
 		));
 	}
 
+	public async execFile(fileName: string) {
+		if (!this.pool) throw new Error('No connection pool available!');
+
+		const schemaSql = await fs.promises.readFile(
+			path.join(process.cwd(), 'scripts', 'sql', fileName),
+			'utf-8'
+		);
+
+		return this.query(schemaSql);
+	}
+
 	public async transact() {
 		if (!this.pool) throw new Error('No connection pool available!');
 		const client = await this.pool.connect();
+		let err: any;
 
 		const query = async (
 			queryStr: string, 
@@ -113,13 +113,13 @@ export class PgService implements IPgService {
 			client
 		);
 
-		let err: any;
 		const commit = async () => {
 			try {
 				const res = await client.query('COMMIT');
 				return res;
 			} 
 			catch (e) {
+				this.logger.error('Transaction commit error', e);
 				await client.query('ROLLBACK');
 				err = e;
 			}
@@ -129,8 +129,20 @@ export class PgService implements IPgService {
 			}
 		};
 
+		const rollback = async () => {
+			try {
+				await client.query('ROLLBACK');
+			}
+			catch (e) {
+				this.logger.error('Rollback error', e);
+			}
+			finally {
+				client.release();
+			}
+		};
+
 		await client.query('BEGIN');
-		return { query, commit };
+		return { query, commit, rollback };
 	}
 
 }

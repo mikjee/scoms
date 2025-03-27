@@ -99,6 +99,10 @@ export interface IInventoryService {
 		allocations: TAllocationProposal[],
 	): Promise<boolean>
 
+	confirmAllocation(
+		orderId: TOrderId,
+	): Promise<boolean>
+
 	cancelAllocation(
 		orderId: TOrderId,
 	): Promise<boolean>
