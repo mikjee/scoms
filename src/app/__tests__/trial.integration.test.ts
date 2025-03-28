@@ -96,10 +96,12 @@ export const trialTest = async (
 	const finalOrder = await orderSvc.getOrder(orderId);
 	console.log("Finalized order:", finalOrder);
 
-	const confirmResult = await invSvc.confirmAllocation(
-		orderId,
-	);
-	console.log("is allocation confirmed:", confirmResult);
+	// const confirmResult = await invSvc.confirmAllocation(
+	// 	orderId,
+	// );
+	// console.log("is allocation confirmed:", confirmResult);
+
+	await new Promise(resolve => setTimeout(resolve, 5000));
 
 	const orderAllocations = await invSvc.getAllocatedStock(orderId);
 	const inventory = await invSvc.getInventory(
@@ -110,47 +112,47 @@ export const trialTest = async (
 	console.log("Order allocations:", orderAllocations);
 
 	console.log("End Test");
-	return;
+	// return;
 
-	evSvc.subscribe(EEventType.ORDER_PROCESSING, async (event) => {
-		console.log("Test event received 1:", event.eventType);
-	});
+	// evSvc.subscribe(EEventType.ORDER_PROCESSING, async (event) => {
+	// 	console.log("Test event received 1:", event.eventType);
+	// });
 
-	evSvc.subscribe(EEventType.ORDER_PROCESSING, async (event) => {
-		console.log("Test event received 2:", event.eventType);
-	});
+	// evSvc.subscribe(EEventType.ORDER_PROCESSING, async (event) => {
+	// 	console.log("Test event received 2:", event.eventType);
+	// });
 
-	evSvc.emit({
-		eventType: EEventType.ORDER_PROCESSING,
-		payload: {
-			orderId,
-			productId,
-			addressId,
-		},
-	});
+	// evSvc.emit({
+	// 	eventType: EEventType.ORDER_PROCESSING,
+	// 	payload: {
+	// 		orderId,
+	// 		productId,
+	// 		addressId,
+	// 	},
+	// });
 
-	evSvc.emit({
-		eventType: EEventType.ORDER_EXECUTED,
-		payload: {
-			orderId,
-			productId,
-			addressId,
-		},
-	});
+	// evSvc.emit({
+	// 	eventType: EEventType.ORDER_EXECUTED,
+	// 	payload: {
+	// 		orderId,
+	// 		productId,
+	// 		addressId,
+	// 	},
+	// });
 
-	evSvc.emit({
-		eventType: EEventType.ORDER_PROCESSING,
-		payload: {
-			orderId,
-			productId,
-			addressId,
-		},
-	});
+	// evSvc.emit({
+	// 	eventType: EEventType.ORDER_PROCESSING,
+	// 	payload: {
+	// 		orderId,
+	// 		productId,
+	// 		addressId,
+	// 	},
+	// });
 
-	setTimeout(() => {
-		evSvc.subscribe(EEventType.ORDER_EXECUTED, async (event) => {
-			console.log("Test event received 3:", event.eventType);
-		});
-	}, 5000);
+	// setTimeout(() => {
+	// 	evSvc.subscribe(EEventType.ORDER_EXECUTED, async (event) => {
+	// 		console.log("Test event received 3:", event.eventType);
+	// 	});
+	// }, 5000);
 
 };

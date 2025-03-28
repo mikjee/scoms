@@ -1,4 +1,4 @@
-import { IEventProducer } from '@common/types/events';
+import { EEventType, IEventProducer } from '@common/types/events';
 import { EAllocationStatus, IInventoryService, TAllocation, TAllocationProposal, TProduct, TProductAttribute, TProductAttrName, TProductId, TWarehouse, TWarehouseId } from '@common/types/inventory';
 import { PartialBy } from '@common/lib/util';
 import { IPgService } from '@common/types/pg';
@@ -650,6 +650,10 @@ export class InventoryService implements IInventoryService {
 			if (invResults.some((r) => !r)) {
 				this.logger.error('confirmAllocation failed: Some inventory updates failed', orderId);
 				await rollback();
+				await this.eventProducer.emit({
+					eventType: EEventType.INVENTORY_ALLOC_FAILED,
+					payload: { orderId },
+				});
 				return false;
 			}
 
@@ -668,10 +672,20 @@ export class InventoryService implements IInventoryService {
 			if (!allocQuery || !allocQuery.rowCount) {
 				this.logger.error('Failed to update allocation status', orderId);
 				await rollback();
+				await this.eventProducer.emit({
+					eventType: EEventType.INVENTORY_ALLOC_FAILED,
+					payload: { orderId },
+				});
 				return false;
 			}
 
 			await commit();
+
+			await this.eventProducer.emit({
+				eventType: EEventType.INVENTORY_ALLOC_CONFIRMED,
+				payload: { orderId },
+			});
+
 			return true;
 		}
 		catch (err) {

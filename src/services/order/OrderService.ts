@@ -152,7 +152,7 @@ export class OrderService implements IOrderService {
 
 			// Update items // TODO: delete old items, insert new items! IMPORTANT!
 			let itemsQuery = `
-				UPDATE order_items
+				UPDATE scoms.order_items
 				SET quantity = CASE product_id
 			`;
 			const queryParams: Record<string, any> = {};
@@ -337,11 +337,13 @@ export class OrderService implements IOrderService {
 		}
 		else this.logger.log('Order is valid', { orderId });
 
+		const { query, commit, rollback } = await this.db.transact();
+
 		// 2. Confirm the order and set the status to confirmed
 		try {
 
 			// Update the order status to processing, add pricing
-			const t1 = await this.db.query(`
+			const t1 = await query(`
 				UPDATE scoms.orders
 				SET 
 					status = :statusProcessing,
@@ -360,7 +362,7 @@ export class OrderService implements IOrderService {
 
 			if (!t1.rowCount) {
 				this.logger.error('Could not confirm order', { orderId });
-				// TODO: generate rollback/cancel event
+				await rollback();
 				return false;
 			}
 
@@ -372,18 +374,19 @@ export class OrderService implements IOrderService {
 
 			if (!allocResult) {
 				this.logger.error('Could not allocate stock', { orderId });
-				// TODO: generate rollback/cancel event
+				await rollback();
 				return false;
 			}
 
+			await commit();
+
 			// 3. Send the order to the event producer for further processing
-			// TODO: emit event for order processing
-			// this.eventProducer.emit({
-			// 	eventType: EEventType.ORDER_PROCESSING,
-			// 	payload: {
-			// 		orderId: t1.rows[0].order_id,
-			// 	},
-			// });
+			await this.eventProducer.emit({
+				eventType: EEventType.ORDER_PROCESSING,
+				payload: {
+					orderId: t1.rows[0].order_id,
+				},
+			});
 
 			// Done
 			return t1.rows[0].order_id;
@@ -398,21 +401,21 @@ export class OrderService implements IOrderService {
 
 	public async setOrderStatus(
 		orderId: TOrderId,
-		status: EOrderStatus,
+		newStatus: EOrderStatus,
 	): Promise<boolean> {
 		// This is used to set oprder status according to rules
 		// 1. A draft order can be set to processing
 		// 2. A processing order can be set to confirmed or cancelled 
 		// 3. A confirmed order can be set to fulfilled or cancelled
 
-		const expectedStatus = (() => {
-			switch (status) {
+		const fromStatus = (() => {
+			switch (newStatus) {
 				case EOrderStatus.PROCESSING:
-					return EOrderStatus.DRAFT;
+					return [EOrderStatus.DRAFT];
 				case EOrderStatus.CONFIRMED:
-					return EOrderStatus.PROCESSING;
+					return [EOrderStatus.PROCESSING];
 				case EOrderStatus.FULFILLED:
-					return EOrderStatus.CONFIRMED;
+					return [EOrderStatus.CONFIRMED];
 				case EOrderStatus.CANCELLED:
 					return [EOrderStatus.PROCESSING, EOrderStatus.CONFIRMED];
 			}
@@ -420,24 +423,29 @@ export class OrderService implements IOrderService {
 
 		try {
 			const result = await this.db.query(`
-				UPDATE orders
-				SET status = :status
-				WHERE order_id = :orderId AND status = :expectedStatus
+				UPDATE 
+					scoms.orders
+				SET 
+					status = :newStatus
+				WHERE 
+					order_id = :orderId AND 
+					status = ANY(:fromStatus) 
+				RETURNING order_id, status;
 			`, {
 				orderId,
-				status,
-				expectedStatus,
+				newStatus,
+				fromStatus,
 			});
 
 			if (!result.rowCount) {
-				this.logger.error('Could not set order status', { orderId, status });
+				this.logger.error('Could not set order status', { orderId, status: newStatus });
 				return false;
 			}
 
 			return true;
 		}
 		catch (error) {
-			this.logger.error('Error setting order status', { orderId, status, error });
+			this.logger.error('Error setting order status', { orderId, status: newStatus, error });
 			throw error;
 		}
 	};
