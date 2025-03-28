@@ -22,6 +22,33 @@ export class InventoryService implements IInventoryService {
 
 	// ---
 
+	public async getAllProducts(): Promise<Omit<TProduct, "attributes">[]> {
+		try {
+			const result = await this.db.query(`
+				SELECT 
+					product_id, 
+					product_name
+				FROM scoms.products;
+			`);
+
+			if (!result) {
+				this.logger.error('getAllProducts failed: No result returned');
+				throw new Error("getAllProducts failed: No result returned");
+			}
+
+			const products: Omit<TProduct, "attributes">[] = result.rows.map((row: any) => ({
+				productId: row.product_id,
+				productName: row.product_name,
+			}));
+
+			return products;
+		}
+		catch (err) {
+			this.logger.error('getAllProducts failed:', err);
+			throw err;
+		}
+	}
+
 	public async createProduct(
 		productName: TProduct['productName'],
 		attributes: Record<TProductAttrName, Omit<TProductAttribute, "attributeId">> = {},
@@ -209,6 +236,72 @@ export class InventoryService implements IInventoryService {
 
 	// ---
 
+	public async getAllWarehouses(): Promise<TWarehouse[]> {
+		try {
+			const result = await this.db.query(`
+				SELECT 
+					warehouse_id, 
+					warehouse_name, 
+					city, 
+					coords[0] AS lat,
+					coords[1] AS lng
+				FROM scoms.warehouses;
+			`);
+
+			if (!result) {
+				this.logger.error('getAllWarehouses failed: No result returned');
+				throw new Error("getAllWarehouses failed: No result returned");
+			}
+
+			const warehouses: TWarehouse[] = result.rows.map((row: any) => ({
+				warehouseId: row.warehouse_id,
+				warehouseName: row.warehouse_name,
+				city: row.city,
+				coords: {
+					lat: row.lat,
+					lng: row.lng,
+				},
+			}));
+
+			return warehouses;
+		}
+		catch (err) {
+			this.logger.error('getAllWarehouses failed:', err);
+			throw err;
+		}
+	}
+
+	public async getWarehouse(warehouseId: TWarehouseId): Promise<TWarehouse | false> {
+		try {
+			const result = await this.db.query(`
+				SELECT 
+					warehouse_id, 
+					warehouse_name, 
+					city, 
+					coords[0] AS lat,
+					coords[1] AS lng
+				FROM scoms.warehouses
+				WHERE warehouse_id = :warehouseId;
+			`, { warehouseId });
+
+			if (!result || !result.rowCount) return false;
+
+			return {
+				warehouseId: result.rows[0].warehouse_id,
+				warehouseName: result.rows[0].warehouse_name,
+				city: result.rows[0].city,
+				coords: {
+					lat: result.rows[0].lat,
+					lng: result.rows[0].lng,
+				},
+			};
+		}
+		catch (err) {
+			this.logger.error('getWarehouse failed:', err);
+			throw err;
+		}
+	}
+
 	public async createWarehouse(
 		warehouseId: TWarehouseId,
 		warehouseName: string,
@@ -315,6 +408,40 @@ export class InventoryService implements IInventoryService {
 			throw err;
 		}
 		
+	}
+
+	public async getAllInventory(
+		warehouseId: TWarehouseId
+	): Promise<{
+		productId: TProductId
+		productName: string
+		quantity: number
+	}[]> {
+		try {
+			const result = await this.db.query(`
+				SELECT 
+					i.product_id, 
+					p.product_name, 
+					i.quantity
+				FROM scoms.inventory AS i
+				LEFT JOIN scoms.products AS p ON i.product_id = p.product_id
+				WHERE i.warehouse_id = :warehouseId;
+			`, { warehouseId });
+
+			if (!result) {
+				this.logger.error('getAllInventory failed: No result returned');
+				throw new Error("getAllInventory failed: No result returned");
+			}
+
+			return result.rows.map((row: any) => ({
+				productId: row.product_id,
+				productName: row.product_name,
+				quantity: row.quantity,
+			}));
+		} catch (err) {
+			this.logger.error('getAllInventory failed:', err);
+			throw err;
+		}
 	}
 
 	public async getInventory(

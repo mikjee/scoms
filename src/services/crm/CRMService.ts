@@ -43,10 +43,12 @@ export class CRMService implements ICRMService {
 			const addressId = this.uid();
 
 			const result = await this.db.query(`
-				INSERT INTO scoms.addresses (address_id, external_customer_id, coords, meta)
-				VALUES (:addressId, :externalCustomerId, point(:x, :y), :meta)
-				ON CONFLICT (address_id) DO NOTHING
-				RETURNING address_id, external_customer_id, coords, meta;
+				INSERT INTO scoms.addresses 
+					(address_id, external_customer_id, coords, meta)
+				VALUES 
+					(:addressId, :externalCustomerId, point(:x, :y), :meta)
+				RETURNING 
+					address_id, external_customer_id, coords, meta;
 			`, {
 				addressId,
 				externalCustomerId,

@@ -49,6 +49,8 @@ export type TAllocationProposal = (Omit<TAllocation, "status"> & {
 
 export interface IInventoryService {
 
+	getAllProducts(): Promise<Omit<TProduct, "attributes">[]>
+
 	createProduct(
 		productName: TProduct['productName'],
 		attributes: Record<string, Omit<TProductAttribute, "attributeId">>,
@@ -63,6 +65,10 @@ export interface IInventoryService {
 	getProduct(idOrName: TProductId | string): Promise<TProduct | false>
 
 	// ---
+
+	getAllWarehouses(): Promise<TWarehouse[]>
+
+	getWarehouse(warehouseId: TWarehouseId): Promise<TWarehouse | false>
 
 	createWarehouse(
 		warehouseId: TWarehouseId,
@@ -82,6 +88,14 @@ export interface IInventoryService {
 		productId: TProductId,
 		quantity: number,
 	): Promise<number | false>
+
+	getAllInventory(
+		warehouseId: TWarehouseId
+	): Promise<{
+		productId: TProductId
+		productName: string
+		quantity: number
+	}[]>
 
 	getInventory(
 		warehouseId: TWarehouseId,

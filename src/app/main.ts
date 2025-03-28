@@ -14,6 +14,9 @@ import { defaultValidation } from '@services/order/strategies/defaultValidation'
 import { IPgConnectionArgs, IPgService } from '@common/types/pg';
 import { trialTest } from 'src/app/__tests__/trial.integration.test';
 import { setupPgTestService } from '@common/pg/PgTestService';
+import { WebServer } from '@services/webserver/WebServer';
+import { IWebServerConfig } from '@common/types/webserver';
+import { buildWebDataPool, WebRoutesFactory } from '@services/webserver/routes';
 
 // ---
 
@@ -32,7 +35,7 @@ console.log("Begin Bootrap Monolith..");
 	// };
 
 	// Start test container
-	console.log("Starting Postgres Test Container...");
+	console.log("Starting Postgres Test Container..");
 	const pgContainerConfig = await setupPgTestService();
 
 	// pg service
@@ -91,22 +94,48 @@ console.log("Begin Bootrap Monolith..");
 		invSvc,
 	);
 
+	// web server
+	const webLoggerSvc = new ConsoleLogger("Express");
+	const routes = WebRoutesFactory(
+		webLoggerSvc,
+		invSvc,
+		crmSvc,
+		orderSvc,
+		orchestrator,
+	);
+	
+	const webConfig: IWebServerConfig = {
+		port: process.env.WEBPORT ? parseInt(process.env.WEBPORT) : 3000,
+		host: process.env.WEBHOST || "localhost",
+
+		routes,
+		middlewares: [],
+		dataPoolBuilder: buildWebDataPool,
+		allowedOrigins: [],
+	};
+
+	const webSvc = new WebServer(
+		webConfig,
+		webLoggerSvc,
+	);
+
 	// All ready
 	evSvc.start();
 	orchestrator.start();
+	await webSvc.serve();
+
 	console.log("Monolith Bootstrap Complete!");
 
 	// ---
 
-	console.log("Begin Test...");
-
 	// Test the services
-	await trialTest(
-		crmSvc,
-		invSvc,
-		orderSvc,
-		evSvc,
-	);
+	// console.log("Begin Test...");
+	// await trialTest(
+	// 	crmSvc,
+	// 	invSvc,
+	// 	orderSvc,
+	// 	evSvc,
+	// );
 
 })();
 

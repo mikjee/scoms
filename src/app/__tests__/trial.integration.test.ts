@@ -110,6 +110,7 @@ export const trialTest = async (
 	console.log("Order allocations:", orderAllocations);
 
 	console.log("End Test");
+	return;
 
 	evSvc.subscribe(EEventType.ORDER_PROCESSING, async (event) => {
 		console.log("Test event received 1:", event.eventType);

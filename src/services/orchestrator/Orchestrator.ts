@@ -2,11 +2,12 @@ import { ICRMService } from '@common/types/crm';
 import { IEventConsumer, IEventProducer } from '@common/types/events';
 import { IInventoryService } from '@common/types/inventory';
 import { ILoggerService } from '@common/types/logger';
+import { IOrchestrator } from '@common/types/orchestrator';
 import { IOrderService } from '@common/types/order';
 
 // ---
 
-export class Orchestrator {
+export class Orchestrator implements IOrchestrator{
 
 	constructor (
 		private readonly logger: ILoggerService,
