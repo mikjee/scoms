@@ -17,6 +17,8 @@ import { setupPgTestService } from '@common/pg/PgTestService';
 import { WebServer } from '@services/webserver/WebServer';
 import { IWebServerConfig } from '@common/types/webserver';
 import { buildWebDataPool, WebRoutesFactory } from '@services/webserver/routes';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './swagger';
 
 // ---
 
@@ -122,20 +124,24 @@ console.log("Begin Bootrap Monolith..");
 	// All ready
 	evSvc.start();
 	orchestrator.start();
-	await webSvc.serve();
+	const {app} = await webSvc.serve();
 
+	// Swagger UI
+	app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+	// Done
 	console.log("Monolith Bootstrap Complete!");
 
 	// ---
 
 	// Test the services
-	// console.log("Begin Test...");
-	// await trialTest(
-	// 	crmSvc,
-	// 	invSvc,
-	// 	orderSvc,
-	// 	evSvc,
-	// );
+	console.log("Begin Test...");
+	await trialTest(
+		crmSvc,
+		invSvc,
+		orderSvc,
+		evSvc,
+	);
 
 })();
 

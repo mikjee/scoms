@@ -1,0 +1,707 @@
+# docs/openapi.yaml
+openapi: 3.0.0
+info:
+  title: ScreenCloud OMS
+  version: 1.0.0
+  description: By Soumik Chatterjee, March 2025
+
+servers:
+  - url: http://localhost:3000
+
+paths:
+  /status/:
+    get:
+      summary: Health check
+      tags: [Status]
+      responses:
+        '200':
+          description: Returns API version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionInfo'
+
+  /customers/:
+    get:
+      summary: Get list of customer IDs
+      tags: [Customers]
+      responses:
+        '200':
+          description: List of customer IDs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerIdList'
+
+  /customers/{customerId}/addresses:
+    get:
+      summary: Get addresses for a specific customer
+      tags: [Customers]
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of addresses for a customer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Address'
+
+    post:
+      summary: Add new address for a customer
+      tags: [Customers]
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewAddressInput'
+      responses:
+        '200':
+          description: Newly created address
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+
+  /customers/{customerId}/addresses/{addressId}:
+    get:
+      summary: Get specific address by ID for a customer
+      tags: [Customers]
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: addressId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Specific address details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+
+  /customers/{customerId}/addresses/{addressId}/orders:
+    get:
+      summary: Get orders by customer address
+      tags: [Orders]
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: addressId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of orders associated with the specified address
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+
+  /customers/{customerId}/orders:
+    get:
+      summary: Get all orders for a customer
+      tags: [Orders]
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of orders for a customer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+
+  paths:
+  /products/:
+    get:
+      summary: List all products
+      tags: [Products]
+      responses:
+        '200':
+          description: List of all products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+
+    post:
+      summary: Create a new product
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewProductInput'
+      responses:
+        '200':
+          description: Newly created product
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  /products/{productId}:
+    get:
+      summary: Get details of a specific product by ID
+      tags: [Products]
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  /warehouses/:
+    get:
+      summary: List all warehouses
+      tags: [Warehouses]
+      responses:
+        '200':
+          description: List of all warehouses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Warehouse'
+
+    post:
+      summary: Create a new warehouse
+      tags: [Warehouses]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewWarehouseInput'
+      responses:
+        '200':
+          description: Newly created warehouse
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Warehouse'
+
+  /warehouses/{warehouseId}:
+    get:
+      summary: Get details of a specific warehouse by ID
+      tags: [Warehouses]
+      parameters:
+        - name: warehouseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Warehouse details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Warehouse'
+
+  /warehouses/{warehouseId}/inventory:
+    get:
+      summary: List all inventory items in a specific warehouse
+      tags: [Inventory]
+      parameters:
+        - name: warehouseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory list for a warehouse
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryItem'
+
+  /warehouses/{warehouseId}/inventory/{productId}:
+    get:
+      summary: Get specific product inventory in a warehouse
+      tags: [Inventory]
+      parameters:
+        - name: warehouseId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory details for a specific product in a warehouse
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+
+    post:
+      summary: Add inventory quantity for a specific product in a warehouse
+      tags: [Inventory]
+      parameters:
+        - name: warehouseId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quantity:
+                  type: number
+      responses:
+        '200':
+          description: Updated inventory details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+
+    delete:
+      summary: Subtract inventory quantity for a specific product in a warehouse
+      tags: [Inventory]
+      parameters:
+        - name: warehouseId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quantity:
+                  type: number
+      responses:
+        '200':
+          description: Updated inventory details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+
+  /orders/:
+    post:
+      summary: Create a new draft order
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewOrderParams'
+      responses:
+        '200':
+          description: Created order draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDraft'
+
+  /orders/{orderId}:
+    get:
+      summary: Get details of a specific order
+      tags: [Orders]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDraft'
+
+    put:
+      summary: Update items of a draft order
+      tags: [Orders]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OrderItem'
+      responses:
+        '200':
+          description: Updated order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDraft'
+
+  /orders/{orderId}/proposal:
+    get:
+      summary: Get order proposal details
+      tags: [Orders]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order proposal details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderProposal'
+
+    post:
+      summary: Validate order proposal
+      tags: [Orders]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderProposalInput'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+
+  /orders/{orderId}/confirm:
+    post:
+      summary: Finalize an order
+      tags: [Orders]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderProposalInput'
+      responses:
+        '200':
+          description: Finalization result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+
+components:
+  schemas:
+    CustomerIdList:
+      type: array
+      items:
+        type: string
+
+    Address:
+      type: object
+      properties:
+        addressId:
+          type: string
+        customerId:
+          type: string
+        coords:
+          type: object
+          properties:
+            lat:
+              type: number
+            lng:
+              type: number
+
+    NewAddressInput:
+      type: object
+      properties:
+        lat:
+          type: number
+        lng:
+          type: number
+
+    Order:
+      type: object
+      properties:
+        orderId:
+          type: string
+        externalCustomerId:
+          type: string
+        addressId:
+          type: string
+        agentId:
+          type: string
+        status:
+          type: string
+          enum: ["draft", "processing", "confirmed", "fulfilled", "cancelled"]
+        createdOn:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId:
+                type: string
+              quantity:
+                type: number
+        pricingStrategy:
+          type: string
+        shippingStrategy:
+          type: string
+        validationStrategy:
+          type: string
+
+    VersionInfo:
+      type: object
+      properties:
+        version:
+          type: string
+          example: "1.0.0"
+
+    Product:
+      type: object
+      properties:
+        productId:
+          type: string
+        productName:
+          type: string
+        attributes:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ProductAttribute'
+
+    NewProductInput:
+      type: object
+      properties:
+        productName:
+          type: string
+        attributes:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ProductAttribute'
+
+    ProductAttribute:
+      type: object
+      properties:
+        attributeId:
+          type: string
+        value:
+          oneOf:
+            - type: string
+            - type: number
+            - type: 'null'
+        meta:
+          type: object
+          additionalProperties: true
+
+    Warehouse:
+      type: object
+      properties:
+        warehouseId:
+          type: string
+        warehouseName:
+          type: string
+        city:
+          type: string
+        coords:
+          type: object
+          properties:
+            lat:
+              type: number
+            lng:
+              type: number
+
+    NewWarehouseInput:
+      type: object
+      properties:
+        warehouseId:
+          type: string
+        warehouseName:
+          type: string
+        city:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+
+    InventoryItem:
+      type: object
+      properties:
+        warehouseId:
+          type: string
+        productId:
+          type: string
+        quantity:
+          type: number
+
+    NewOrderParams:
+      type: object
+      properties:
+        externalCustomerId:
+          type: string
+        addressId:
+          type: string
+        agentId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        pricingStrategy:
+          type: string
+        shippingStrategy:
+          type: string
+        validationStrategy:
+          type: string
+
+    OrderDraft:
+      allOf:
+        - $ref: '#/components/schemas/NewOrderParams'
+        - type: object
+          properties:
+            orderId:
+              type: string
+            status:
+              type: string
+              enum: ["draft"]
+            createdOn:
+              type: string
+              format: date-time
+
+    OrderProposal:
+      allOf:
+        - $ref: '#/components/schemas/OrderDraft'
+        - type: object
+          properties:
+            pricing:
+              type: object
+            allocations:
+              type: array
+              items:
+                $ref: '#/components/schemas/AllocationProposal'
+
+    OrderProposalInput:
+      type: object
+      properties:
+        proposal:
+          $ref: '#/components/schemas/OrderProposal'
+
+    ValidationResult:
+      type: object
+      properties:
+        isValid:
+          type: boolean
+        message:
+          type: string
+          nullable: true
+
+    OrderItem:
+      type: object
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: number
+
+    AllocationProposal:
+      type: object
+      properties:
+        warehouseId:
+          type: string
+        productId:
+          type: string
+        quantity:
+          type: number
+        distance:
+          type: number
+

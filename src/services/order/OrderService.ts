@@ -516,7 +516,7 @@ export class OrderService implements IOrderService {
 		try {
 			const result = await this.db.query(`
 				SELECT order_id
-				FROM orders
+				FROM scoms.orders
 				WHERE external_customer_id = :customerId
 			`, {
 				customerId,
@@ -536,7 +536,7 @@ export class OrderService implements IOrderService {
 		try {
 			const result = await this.db.query(`
 				SELECT order_id
-				FROM orders
+				FROM scoms.orders
 				WHERE address_id = :addressId
 			`, {
 				addressId,
@@ -556,7 +556,7 @@ export class OrderService implements IOrderService {
 		try {
 			const result = await this.db.query(`
 				SELECT order_id
-				FROM orders
+				FROM scoms.orders
 				WHERE agent_id = :agentId
 			`, {
 				agentId,

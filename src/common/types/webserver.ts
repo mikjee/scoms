@@ -15,9 +15,11 @@ export interface IWebRouteHandler {
 	(dataPool: any, response: Response, req: Request): Promise<TWebResult | undefined | false | void>
 };
 
+export type TUrlPath = `/${string}`;
+
 export type TWebRoutes = {
-	[path: string]: {
-		[subPath: string]: {
+	[path: TUrlPath]: {
+		[subPath: TUrlPath]: {
 			[method: string]: IWebRouteHandler
 		}
 	}

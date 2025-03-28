@@ -3,7 +3,7 @@ import * as http from 'http';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
-import { IWebDataPoolBuilder, IWebMiddleware, IWebServerConfig, TWebRoutes } from '@common/types/webserver';
+import { IWebDataPoolBuilder, IWebMiddleware, IWebServerConfig, TUrlPath, TWebRoutes } from '@common/types/webserver';
 import { ILoggerService } from '@common/types/logger';
 
 // ---
@@ -27,7 +27,7 @@ export class WebServer {
 	private route = (
 		app: any,
 
-		HTTPRoutes: TWebRoutes,
+		routes: TWebRoutes,
 		middlewares: Array<IWebMiddleware> = [],
 
 		buildDataPool: IWebDataPoolBuilder = (request) => ({
@@ -39,15 +39,17 @@ export class WebServer {
 	) => {	
 
 		// Parse routes
-		Object.keys(HTTPRoutes).forEach(path => {
+		Object.keys(routes).forEach(_path => {
 
+			const path = _path as TUrlPath;
 			const router = express.Router();
 			
-			Object.keys(HTTPRoutes[path]).forEach(subPath => {
+			Object.keys(routes[path]).forEach(_subPath => {
+				const subPath = _subPath as TUrlPath;
 
-				Object.keys(HTTPRoutes[path][subPath]).forEach(method => {
+				Object.keys(routes[path][subPath]).forEach(method => {
 
-					const handler = HTTPRoutes[path][subPath][method];
+					const handler = routes[path][subPath][method];
 
 					const wrappedHandler = async (request: any, response: Response) => {
 						try {
@@ -153,7 +155,7 @@ export class WebServer {
 			return next(err);
 		});
 
-		return server;
+		return { server, app };
 	}
 
 };

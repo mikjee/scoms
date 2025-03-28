@@ -83,8 +83,8 @@ export class CRMService implements ICRMService {
 			const result = await this.db.query(`
 				SELECT address_id, external_customer_id, coords, meta
 				FROM scoms.addresses
-				WHERE external_customer_id = $1
-			`, [externalCustomerId]);
+				WHERE external_customer_id = :externalCustomerId
+			`, {externalCustomerId});
 
 			return result.rows.map((row: any) => ({
 				addressId: row.address_id,
