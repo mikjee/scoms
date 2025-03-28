@@ -26,6 +26,5 @@ export class Orchestrator {
 	public start(): void {
 		this.logger.log("Started!");
 	}
-	
 
 }

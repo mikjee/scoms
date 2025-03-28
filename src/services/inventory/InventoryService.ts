@@ -256,10 +256,13 @@ export class InventoryService implements IInventoryService {
 	
 		try {
 			const result = await this.db.query(`
-				INSERT INTO scoms.inventory (warehouse_id, product_id, quantity)
-				VALUES (:warehouseId, :productId, :quantity)
-				ON CONFLICT (warehouse_id, product_id) DO UPDATE SET
-					quantity = scoms.inventory.quantity + EXCLUDED.quantity
+				INSERT INTO 
+					scoms.inventory (warehouse_id, product_id, quantity)
+				VALUES 
+					(:warehouseId, :productId, :quantity)
+				ON CONFLICT 
+					(warehouse_id, product_id) DO UPDATE SET
+						quantity = scoms.inventory.quantity + EXCLUDED.quantity
 				RETURNING quantity
 			`, {
 				warehouseId,

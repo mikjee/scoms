@@ -51,13 +51,13 @@ export interface IInventoryService {
 
 	createProduct(
 		productName: TProduct['productName'],
-		attributes: TProduct['attributes'],
+		attributes: Record<string, Omit<TProductAttribute, "attributeId">>,
 	): Promise<TProduct>
 
 	// Products & attributes should be immutable!
 	dangerouslySetAttributes(
 		productId: TProductId,
-		attributes: Record<TProductAttrName, PartialBy<TProductAttribute, "attributeId">>,
+		attributes: Record<TProductAttrName, Omit<TProductAttribute, "attributeId">>,
 	): Promise<boolean>
 
 	getProduct(idOrName: TProductId | string): Promise<TProduct | false>
