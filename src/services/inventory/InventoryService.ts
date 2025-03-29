@@ -814,7 +814,7 @@ export class InventoryService implements IInventoryService {
 					lat: destinationCoords.lat,
 					lng: destinationCoords.lng,
 					start,
-				}, true);
+				});
 
 				if (!result || !result.rowCount) return [];
 

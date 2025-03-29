@@ -12,13 +12,12 @@ import { defaultPricing } from '@services/order/strategies/defaultPricing';
 import { defaultAllocation } from '@services/order/strategies/defaultAllocation';
 import { defaultValidation } from '@services/order/strategies/defaultValidation';
 import { IPgConnectionArgs, IPgService } from '@common/types/pg';
-import { trialTest } from 'src/app/__tests__/trial.integration.test';
 import { setupPgTestService } from '@common/pg/PgTestService';
 import { WebServer } from '@services/webserver/WebServer';
 import { IWebServerConfig } from '@common/types/webserver';
 import { buildWebDataPool, WebRoutesFactory } from '@services/webserver/routes';
 import swaggerUi from 'swagger-ui-express';
-import { swaggerSpec } from './swagger';
+import { swaggerSpec } from '../dev/swagger';
 
 // ---
 
@@ -47,6 +46,7 @@ console.log("Begin Bootrap Monolith..");
 	);
 	await pgsvc.waitForReady();
 	await pgsvc.execFile('create.sql');
+	await pgsvc.execFile('populate.sql');
 
 	// event service - both producer & consumer
 	const evSvc = new PGEventService(
@@ -134,16 +134,23 @@ console.log("Begin Bootrap Monolith..");
 
 	// ---
 
-	// Test the services
-	console.log("Begin Test...");
-	await trialTest(
-		crmSvc,
-		invSvc,
-		orderSvc,
-		evSvc,
-	);
+	// // Test the services
+	// console.log("Begin Test...");
+	// await trialTest(
+	// 	crmSvc,
+	// 	invSvc,
+	// 	orderSvc,
+	// 	evSvc,
+	// );
 
 })();
+
+// ---
+
+// TODO: unit tests
+// TODO: clean up main.ts - remove all test code and add to test folder
+// TODO: add DI
+// TODO: add kysely
 
 // ---
 
