@@ -27,13 +27,13 @@ console.log("Begin Bootrap Monolith..");
 		
 	// Load env vars
 	dotenv.config();
-	// const pgConfig: IPgConnectionArgs = {
-	// 	user: process.env.PGUSER,
-	// 	password: process.env.PGPASSWORD,
-	// 	host: process.env.PGHOST,
-	// 	port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
-	// 	database: process.env.PGDATABASE,
-	// };
+	const pgConfig: IPgConnectionArgs = {
+		user: process.env.PGUSER,
+		password: process.env.PGPASSWORD,
+		host: process.env.PGHOST,
+		port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
+		database: process.env.PGDATABASE,
+	}; // NOTE: this is not used for testcontainers!
 
 	// Start test container
 	console.log("Starting Postgres Test Container..");
@@ -144,27 +144,3 @@ console.log("Begin Bootrap Monolith..");
 	// );
 
 })();
-
-// ---
-
-// TODO: unit tests
-// TODO: clean up main.ts - remove all test code and add to test folder
-// TODO: add DI
-// TODO: add kysely
-
-// ---
-
-// TODO: inject db namespace
-// TODO: too much error handling - select which levels and where to handle errors!
-// TODO: service-complaint return values from methods!
-// TODO: add dependency injection - tsyringe!
-// TODO: add query builder kysely!
-// TODO: Add auth? or only for wrapper exposing it to the outside world?
-// TODO: generate test spec for each method
-// TODO: add caching - redis required? - use demo data for now
-// TODO: create REST wrapper
-// TODO: eslint rules are not working - import restrictions, console restrictions
-// TODO: create plans - mvp and mvp phase 2
-// TODO: add swagger docs
-// TODO: add jsdoc style comments
-// TODO: add ci/cd - setup husky, lint-staged, and other tools
