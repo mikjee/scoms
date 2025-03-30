@@ -1,7 +1,31 @@
 # ScreenCloud OMS DEMO
 Author: Soumik Chatterjee (soumik.chat@hotmail.com)
 
-## Prerequisites
+## MVP Features
+
+### Functional requirements
+
+- [x] Products, warehouses, and inventory models.
+- [x] Preview and verify order before confirming.
+- [x] Customizable shipping strategy.
+- [x] Customizable Pricing & promotional strategy.
+- [x] Order pricing & stock allocation validation.
+- [x] Clear pricing breakdown for each order.
+- [x] Transaction inventory manipulation.
+
+### Tech requirements
+
+- [x] Typescript + Node solution!
+- [x] PostgreSQL Database for storage!
+- [x] Well-documented APIs through Swagger.io!
+- [x] Testing strategy with docker + containerized DB instance!
+- [x] Simple & no usage of any opinionated frameworks!
+- [x] Production grade architecture - extensible, scalable, consistent, performant!
+- [x] Dev scripts for running in local environment!
+
+## Installation
+
+### Prerequisites
 
 Before setting up the project, ensure you have the following installed:
 
@@ -9,22 +33,24 @@ Before setting up the project, ensure you have the following installed:
 - **Node.js**: Version `v20.11.0` or higher.
 - **npm**: Main packagae manager.
 
-## Installation
+### Steps
 
 1. Clone the repository to your local machine.
 2. Navigate to the project directory.
 3. Install dependencies:
-	```bash
-	npm install
-	```
+    ```bash
+    npm install
+    ```
 4. Ensure Docker is running.
 5. Start the development server:
-	```bash
-	npm run dev
-	```
+    ```bash
+    npm run dev
+    ```
 6. The REST API endpoint is '<http://localhost:3000>'. The docs for the API can be found on the swagger link '<http://localhost:3000/swagger>'.
 
-## Project Structure
+## Project
+
+### Directory structure
 
 This project is designed to be modular and scalable, with a focus on separating concerns and ensuring services are loosely coupled.The project is organized into the following main directories:
 
@@ -42,11 +68,13 @@ Items which are defined in `common` directory can be imported and used by all ot
 - Services -> can import from `common`.
 - Common -> can import from `common`.
 
-## Services
+### Services
+
+![Alt Text](docs/hld.png)
 
 While the project is monolithic, its architecture is kept so that it can be converted into microservice based architecture easily by creating `package.json` for each individual service.
 
-- **CRM**: Interface to a third-party CRM which primarily keeps track of customer order associations and shipping addresses.
+- **CRM**: Interface to a third-party CRM which primarily keeps track of customer id associations and shipping addresses.
 
 - **Inventory**: Handles inventory management, including stock quantity, product availability, and warehouse operations. Keeps record of stock allocations for order service.
 
@@ -65,28 +93,6 @@ While the project is monolithic, its architecture is kept so that it can be conv
 ## Testing
 
 For demo purpose, only one integration currently exists in the `src/dev/oms.integration.test.ts` file. Unit tests are not provided.
-
-## MVP Features
-
-#### Functional requirements
-
-- [x] Products, warehouses, and inventory models.
-- [x] Preview and verify order before confirming.
-- [x] Customizable shipping strategy.
-- [x] Customizable Pricing & promotional strategy.
-- [x] Order pricing & stock allocation validation.
-- [x] Clear pricing breakdown for each order.
-- [x] Transaction inventory manipulation.
-
-#### Tech requirements
-
-- [x] Typescript + Node solution!
-- [x] PostgreSQL Database for storage!
-- [x] Well-documented APIs through Swagger.io!
-- [x] Testing strategy with docker + containerized DB instance!
-- [x] Simple & no usage of any opinionated frameworks!
-- [x] Production grade architecture - extensible, scalable, consistent, performant!
-- [x] Dev scripts for running in local environment!
 
 ## Phase 2 Proposal (Tech KPIs only)
 
