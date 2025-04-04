@@ -1,3 +1,15 @@
+# Name & Shame
+
+This project was developed as part of a tech interview by ScreenCloud.
+
+It took me a week to develop, while I was fighting the after-effects of long-covid, and a severe teeth infection.
+After finishing this project, the HR initially praised it and asked for further rounds of interview.
+However, before setting up the said next round, I was informed that they had "moved forward with another candidate".
+
+Do not accept take-home projects as part of your interviews. They are a way to make you work for free. Lesson learnt.
+
+Feel free to use this code however you like.
+
 # ScreenCloud OMS DEMO
 Author: Soumik Chatterjee (soumik.chat@hotmail.com)
 
