@@ -1,6 +1,6 @@
 # Name & Shame
 
-This project was developed as part of a tech interview by ScreenCloud.
+This project was developed as part of a tech interview by [ScreenCloud](https://screencloud.com/).
 
 It took me a week to develop, while I was fighting the after-effects of long-covid, and a severe teeth infection.
 After finishing this project, the HR initially praised it and asked for further rounds of interview.
